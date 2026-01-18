@@ -450,6 +450,16 @@ CMD ["npm", "run", "preview"]
 
 ---
 
+## 🌿 Branching Strategy
+
+- The `main` branch is designated for production-ready code.
+- The `dev` branch is used for ongoing development.
+- Developers should create new branches with the naming convention `feature/...` for new features.
+- All commits related to features should be made to the `dev` branch.
+- A Pull Request (PR) should be raised to merge changes from the `dev` branch into the `main` branch during deployment.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
