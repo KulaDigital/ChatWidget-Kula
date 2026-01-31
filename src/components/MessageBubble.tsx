@@ -13,7 +13,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ role, content }) => {
   if (role === 'user') {
     return (
       <div className="flex justify-end animate-slide-in">
-        <div className="bg-theme-primary text-white px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] shadow-md">
+        <div className="bg-theme-primary text-text-on-primary px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] shadow-md">
           <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{content}</p>
         </div>
       </div>
@@ -22,7 +22,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ role, content }) => {
 
   return (
     <div className="flex justify-start animate-slide-in">
-      <div className="bg-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-[85%] shadow-sm">
+      <div className="bg-theme-secondary text-text-on-secondary px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-[85%] shadow-sm">
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{content}</p>
       </div>
     </div>

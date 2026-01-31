@@ -77,6 +77,12 @@ const applyWidgetConfig = (config: any, container: HTMLElement) => {
     : '#dbeafe';
   container.style.setProperty('--color-theme-primary-light', lightColor);
   
+  // Calculate contrast text colors based on background luminance
+  const primaryTextColor = getContrastTextColor(widgetConfig.primaryColor);
+  const secondaryTextColor = getContrastTextColor(widgetConfig.secondaryColor);
+  container.style.setProperty('--color-text-on-primary', primaryTextColor);
+  container.style.setProperty('--color-text-on-secondary', secondaryTextColor);
+  
   // Store position and welcome message as data attributes
   container.setAttribute('data-position', widgetConfig.position);
   container.setAttribute('data-welcome-message', widgetConfig.welcomeMessage);
@@ -92,6 +98,23 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
     g: parseInt(result[2], 16),
     b: parseInt(result[3], 16)
   } : null;
+};
+
+// ✅ Helper: Calculate luminance to determine if text should be white or dark
+const getLuminance = (hex: string): number => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0.5; // Default to mid-range
+  
+  // Calculate relative luminance using WCAG formula
+  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  return luminance;
+};
+
+// ✅ Helper: Determine text color based on background brightness
+const getContrastTextColor = (hex: string): string => {
+  const luminance = getLuminance(hex);
+  // If luminance > 0.5, use dark text; otherwise use white text
+  return luminance > 0.5 ? '#1f2937' : '#ffffff';
 };
 
 // ✅ Initialize widget

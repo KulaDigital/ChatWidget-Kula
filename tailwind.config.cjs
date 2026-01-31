@@ -17,6 +17,11 @@ module.exports = {
           'primary-light': 'var(--color-theme-primary-light, #dbeafe)',
           secondary: 'var(--color-theme-secondary, #1d4ed8)',
         },
+        // ✅ Contrast text colors that dynamically adjust based on background brightness
+        'text': {
+          'on-primary': 'var(--color-text-on-primary, #ffffff)',
+          'on-secondary': 'var(--color-text-on-secondary, #1f2937)',
+        },
       },
       
       // Widget-specific z-index
@@ -68,11 +73,12 @@ module.exports = {
     'bg-theme-primary',
     'bg-theme-primary-hover',
     'bg-theme-primary-light',
+    'bg-theme-secondary',
     'text-theme-primary',
+    'text-text-on-primary',
+    'text-text-on-secondary',
     'border-theme-primary',
     'hover:bg-theme-primary-hover',
     'focus:ring-theme-primary-light',
-    'from-theme-primary',
-    'to-theme-secondary',
   ],
 }
