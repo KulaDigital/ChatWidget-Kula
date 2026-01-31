@@ -24,7 +24,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled
     />
     <button 
       type="submit"
-      className="bg-theme-primary text-white px-6 py-3 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center"
+      className="bg-theme-primary text-text-on-primary px-6 py-3 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center"
       disabled={disabled || !value.trim()}
     >
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

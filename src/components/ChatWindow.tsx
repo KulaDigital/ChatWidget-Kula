@@ -117,7 +117,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   return (
     <div className="h-full w-full max-w-[400px] bg-white rounded-2xl shadow-widget-lg flex flex-col overflow-hidden">
       {/* Header - Fixed at top with minimize icon */}
-      <div className="bg-gradient-to-r from-theme-primary to-theme-secondary text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="bg-theme-primary text-text-on-primary px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           {/* Avatar */}
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm flex-shrink-0">

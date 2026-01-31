@@ -31,6 +31,7 @@ A **standalone, embeddable React chat widget** built with modern technologies. D
 - ✅ **Lightweight & Embeddable** - Single JS bundle (~50KB gzipped) with no external dependencies
 - ✅ **Fully Typed** - TypeScript for type-safe development
 - ✅ **Dynamic Theming** - Customize colors via CSS variables (primary, secondary, hover states)
+- ✅ **Contrast-Aware Text Colors** - Text color automatically adjusts to ensure visibility on any background color
 - ✅ **Multi-Position Support** - Place widget at any corner (bottom-right, bottom-left, top-right, top-left)
 - ✅ **Conversation Persistence** - Saves chat history using sessionStorage
 - ✅ **Responsive Design** - Mobile-friendly UI with Tailwind CSS
@@ -223,8 +224,18 @@ Override default colors via CSS variables:
   --color-theme-primary-hover: #1d4ed8;
   --color-theme-secondary: #1d4ed8;
   --color-theme-primary-light: #dbeafe;
+  --color-text-on-primary: #ffffff;      /* Auto-calculated based on luminance */
+  --color-text-on-secondary: #1f2937;    /* Auto-calculated based on luminance */
 }
 ```
+
+#### Contrast-Aware Text Colors
+
+The widget automatically calculates appropriate text colors based on background luminance:
+- **Light backgrounds** → Dark text (#1f2937)
+- **Dark backgrounds** → White text (#ffffff)
+
+This ensures text remains readable regardless of the primary or secondary color choices. The calculation uses the WCAG luminance formula for optimal contrast.
 
 ### Supported Positions
 
@@ -254,7 +265,15 @@ Response:
 }
 ```
 
-#### 2. **Send Message**
+#### 2. **Chat Window Design**
+
+The chat window header features:
+- **Solid Primary Color** - Uses a single primary color background (no gradient)
+- **Contrast Text** - Text color automatically adjusts for readability
+- **Online Status** - Green pulse indicator showing agent availability
+- **Minimize Control** - Button to collapse/restore the chat window
+
+#### 3. **Send Message**
 ```
 POST /chat
 Headers: x-api-key: {API_KEY}
@@ -274,7 +293,7 @@ Response:
 }
 ```
 
-#### 3. **Get Conversation History**
+#### 4. **Get Conversation History**
 ```
 GET /chat/history/{conversationId}
 Headers: x-api-key: {API_KEY}
@@ -447,6 +466,33 @@ RUN npm run build
 EXPOSE 3000
 CMD ["npm", "run", "preview"]
 ```
+
+---
+
+## 📝 Recent Updates
+
+### v1.1.0 - Enhanced Theming & Accessibility
+- ✨ **Contrast-Aware Text Colors** - Automatic text color calculation based on background luminance (WCAG formula)
+- 🎨 **Dynamic Text Color CSS Variables** - `--color-text-on-primary` and `--color-text-on-secondary` set automatically
+- 🧹 **Simplified Chat Header** - Changed from gradient to solid primary color for cleaner design
+- 📱 **Improved Accessibility** - All text now has guaranteed minimum contrast ratio for readability
+- 🔧 **Updated Components**:
+  - `MessageBubble.tsx` - Uses dynamic text colors for user and assistant messages
+  - `ChatInput.tsx` - Button text color adjusts for optimal visibility
+  - `ChatWindow.tsx` - Header now uses solid primary color with contrast-aware text
+
+### Color Calculation Algorithm
+
+The widget uses the luminance formula to determine text color:
+
+```
+luminance = (0.299 × R + 0.587 × G + 0.114 × B) / 255
+
+If luminance > 0.5 → use dark text (#1f2937)
+If luminance ≤ 0.5 → use white text (#ffffff)
+```
+
+This ensures text remains readable regardless of the chosen theme colors.
 
 ---
 

@@ -172,6 +172,12 @@ class GreetoChatWidget {
       : '#dbeafe';
     this.container.style.setProperty('--color-theme-primary-light', lightColor);
     
+    // Calculate contrast text colors based on background luminance
+    const primaryTextColor = this.getContrastTextColor(widgetConfig.primaryColor);
+    const secondaryTextColor = this.getContrastTextColor(widgetConfig.secondaryColor);
+    this.container.style.setProperty('--color-text-on-primary', primaryTextColor);
+    this.container.style.setProperty('--color-text-on-secondary', secondaryTextColor);
+    
     // Store config as data attributes
     this.container.setAttribute('data-position', widgetConfig.position);
     this.container.setAttribute('data-welcome-message', widgetConfig.welcomeMessage);
@@ -186,6 +192,13 @@ class GreetoChatWidget {
     this.container.style.setProperty('--color-theme-secondary', '#1d4ed8');
     this.container.style.setProperty('--color-theme-primary-hover', '#1d4ed8');
     this.container.style.setProperty('--color-theme-primary-light', '#dbeafe');
+    
+    // Calculate contrast text colors for default theme
+    const primaryTextColor = this.getContrastTextColor('#2563EB');
+    const secondaryTextColor = this.getContrastTextColor('#1d4ed8');
+    this.container.style.setProperty('--color-text-on-primary', primaryTextColor);
+    this.container.style.setProperty('--color-text-on-secondary', secondaryTextColor);
+    
     this.container.setAttribute('data-position', 'bottom-right');
     this.container.setAttribute('data-welcome-message', 'Hi! How can I help you today?');
     
@@ -199,6 +212,21 @@ class GreetoChatWidget {
       g: parseInt(result[2], 16),
       b: parseInt(result[3], 16)
     } : null;
+  }
+
+  private getLuminance(hex: string): number {
+    const rgb = this.hexToRgb(hex);
+    if (!rgb) return 0.5; // Default to mid-range
+    
+    // Calculate relative luminance using WCAG formula
+    const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+    return luminance;
+  }
+
+  private getContrastTextColor(hex: string): string {
+    const luminance = this.getLuminance(hex);
+    // If luminance > 0.5, use dark text; otherwise use white text
+    return luminance > 0.5 ? '#1f2937' : '#ffffff';
   }
 
   private renderWidget(): void {
