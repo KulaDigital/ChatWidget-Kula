@@ -33,8 +33,12 @@ A **standalone, embeddable React chat widget** built with modern technologies. D
 - ✅ **Dynamic Theming** - Customize colors via CSS variables (primary, secondary, hover states)
 - ✅ **Contrast-Aware Text Colors** - Text color automatically adjusts to ensure visibility on any background color
 - ✅ **Multi-Position Support** - Place widget at any corner (bottom-right, bottom-left, top-right, top-left)
-- ✅ **Conversation Persistence** - Saves chat history using sessionStorage
-- ✅ **Responsive Design** - Mobile-friendly UI with Tailwind CSS
+- ✅ **Conversation Persistence** - Saves chat history using localStorage
+- ✅ **Visitor ID Tracking** - UUID v4 based visitor identification with persistent storage
+- ✅ **Lead Capture Form** - User-invoked form to collect visitor details (name, email, phone, company)
+- ✅ **Lead Management** - Create, read, and update lead information with API integration
+- ✅ **Smart Form UI** - Toggle between chat input and lead form, auto-detect returning visitors
+- ✅ **Responsive Design** - Mobile-friendly UI with Tailwind CSS and scroll support
 - ✅ **Fast Development** - Vite's Hot Module Replacement for instant updates
 - ✅ **Production Ready** - IIFE bundle format for universal compatibility
 - ✅ **API Integration** - Axios client with request/response interceptors
@@ -318,6 +322,103 @@ Response:
 }
 ```
 
+#### 5. **Submit/Create Lead**
+```
+POST /api/leads
+Headers: x-api-key: {API_KEY}
+Body: {
+  "visitorId": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "company": "Tech Corp",
+  "conversationId": 1
+}
+
+Response (201):
+{
+  "success": true,
+  "leadId": "123",
+  "isNew": true,
+  "lead": {
+    "id": "123",
+    "visitor_id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1234567890",
+    "company": "Tech Corp",
+    "conversation_id": 1,
+    "created_at": "2026-02-09T10:00:00Z",
+    "updated_at": "2026-02-09T10:00:00Z"
+  }
+}
+```
+
+#### 6. **Get Lead Details**
+```
+GET /api/leads/{visitorId}
+Headers: x-api-key: {API_KEY}
+
+Response (200):
+{
+  "success": true,
+  "lead": {
+    "id": "123",
+    "visitor_id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1234567890",
+    "company": "Tech Corp",
+    "conversation_id": 1,
+    "created_at": "2026-02-09T10:00:00Z",
+    "updated_at": "2026-02-09T10:00:00Z"
+  }
+}
+```
+
+Error Response (404):
+```json
+{
+  "success": false,
+  "error": "Lead not found"
+}
+```
+
+#### 7. **Update Lead Details**
+```
+PUT /api/leads/{visitorId}
+Headers: x-api-key: {API_KEY}
+Body: {
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": null,
+  "company": null
+}
+
+Response (200):
+{
+  "success": true,
+  "lead": {
+    "id": "123",
+    "visitor_id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "phone": null,
+    "company": null,
+    "conversation_id": 1,
+    "created_at": "2026-02-09T10:00:00Z",
+    "updated_at": "2026-02-09T12:00:00Z"
+  },
+  "message": "Lead updated successfully"
+}
+```
+
+**Features:**
+- Partial updates supported - only send fields to change
+- Optional fields can be set to `null` to clear them
+- Email validation enforced
+- All fields auto-trimmed
+
 ### API Configuration
 
 Edit `src/config/api.ts`:
@@ -325,6 +426,25 @@ Edit `src/config/api.ts`:
 ```typescript
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 const DEFAULT_API_KEY = import.meta.env.VITE_DEV_API_KEY || 'kula-key-test-123';
+```
+
+### Available API Functions
+
+The widget exports these API functions from `src/config/api.ts`:
+
+```typescript
+// Chat API
+sendMessage(message, visitorId, conversationId) // POST /chat
+
+// Lead API  
+submitLead(leadData) // POST /api/leads
+getLead(visitorId) // GET /api/leads/{visitorId}
+updateLead(visitorId, updateData) // PUT /api/leads/{visitorId}
+
+// Configuration
+setApiKey(newApiKey) // Update API key dynamically
+setBaseUrl(newBaseUrl) // Change API base URL
+getCurrentApiKey() // Get current API key
 ```
 
 ---
@@ -336,15 +456,19 @@ react-chatbot-ai-app/
 ├── src/
 │   ├── components/
 │   │   ├── ChatWidget.tsx      # Main widget button & manager
-│   │   ├── ChatWindow.tsx      # Chat window container
+│   │   ├── ChatWindow.tsx      # Chat window container with lead form toggle
 │   │   ├── ChatInput.tsx       # Message input form
+│   │   ├── LeadForm.tsx        # Lead capture/edit form component
 │   │   ├── MessageBubble.tsx   # User/assistant messages
 │   │   └── OnlineButton.tsx    # Online status indicator
 │   ├── config/
-│   │   └── api.ts             # Axios client configuration
+│   │   └── api.ts             # Axios client + lead API functions
 │   ├── types/
 │   │   ├── chat.ts            # Chat data types
+│   │   ├── lead.ts            # Lead form types & interfaces
 │   │   └── window.d.ts        # Global window interface
+│   ├── utils/
+│   │   └── uuid.ts            # UUID v4 generation & visitor ID management
 │   ├── assets/
 │   │   ├── chat-icon.svg      # Chat button icon
 │   │   ├── close-icon.svg     # Close button icon
@@ -470,6 +594,116 @@ CMD ["npm", "run", "preview"]
 ---
 
 ## 📝 Recent Updates
+
+### v1.2.0 - Lead Form Feature & Visitor ID Persistence
+- ✨ **Lead Form Component** - User-invoked form to capture visitor details (name, email, phone, company)
+- 🔄 **Lead Edit Functionality** - Ability to edit previously submitted lead details
+- 💾 **localStorage Persistence** - Visitor ID now persists using RFC 4122 UUID v4 (instead of sessionStorage)
+- 🆔 **Visitor ID Management** - Unique identifier per visitor for persistent conversation tracking
+- 📱 **Scrollable Form UI** - Lead form with proper scroll support for mobile devices
+- 🔌 **Lead API Integration** - Complete CRUD endpoints for lead management:
+  - `POST /api/leads` - Create/upsert lead with visitor details
+  - `GET /api/leads/:visitorId` - Retrieve existing lead data
+  - `PUT /api/leads/:visitorId` - Update lead details with partial updates support
+- ✅ **Form Validation** - Email validation, required fields, real-time error clearing
+- 🎯 **Smart UI State** - Button text changes from "Leave my details" to "Edit my details" after submission
+- 🚀 **Auto-Detection** - On widget mount, checks if lead exists and auto-loads edit mode
+- 🧹 **Empty Field Handling** - Supports clearing optional fields (phone, company) by setting them to null
+
+#### New Files Created
+
+1. **`src/utils/uuid.ts`** (61 lines)
+   - UUID v4 generation (RFC 4122 compliant)
+   - `generateUUID()` - Create new UUID
+   - `getVisitorId()` - Retrieve from localStorage or create new
+   - `clearVisitorId()` - Remove stored visitor ID
+   - Persistent storage using localStorage
+
+2. **`src/types/lead.ts`** (43 lines)
+   - `LeadSubmitRequest` - Lead submission payload
+   - `Lead` - Complete lead data structure
+   - `LeadSubmitResponse` - API response with lead info
+   - `LeadFormData` - Form field values
+   - `LeadFormErrors` - Validation error mapping
+
+3. **`src/components/LeadForm.tsx`** (284 lines)
+   - Reusable lead form component with create/edit modes
+   - Props: `visitorId`, `conversationId`, `initialData`, `isEditMode`, `onSuccess`, `onCancel`
+   - Features:
+     - Name field (required, trimmed)
+     - Email field (required, email regex validation)
+     - Phone field (optional, nullable)
+     - Company field (optional, nullable)
+     - Real-time error clearing on input
+     - Disabled submit button until valid
+     - Error panel for API errors
+     - Proper scroll support with sticky action buttons
+
+#### Modified Files
+
+1. **`src/config/api.ts`** (170 lines)
+   - Added `submitLead()` - POST /leads with visitor tracking
+   - Added `updateLead()` - PUT /leads/:visitorId with partial updates
+   - Added `getLead()` - GET /leads/:visitorId to fetch existing lead
+   - 404 handling for "lead not found" scenarios
+   - Request/response logging for debugging
+
+2. **`src/components/ChatWindow.tsx`** (288 lines)
+   - Imported `getLead` for checking existing leads on mount
+   - Added state: `leadSubmitted` (tracks submission status)
+   - Added state: `leadData` (stores form data for editing)
+   - New useEffect: Checks for existing lead on component mount
+   - Updated `handleLeadSubmitSuccess()` to store lead data
+   - Toggle between chat input and lead form based on state
+   - Button text changes: "Leave my details" → "Edit my details"
+   - Pre-fills form with existing lead data in edit mode
+
+#### Lead Form Workflow
+
+**First Time (Create):**
+```
+User → Clicks "Leave my details" → Form opens
+     → Fills name, email, phone, company
+     → Clicks "Submit" → API: POST /leads
+     → Success message + Button changes to "Edit my details"
+```
+
+**Returning Visitor (Edit):**
+```
+Widget mounts → API: GET /leads/:visitorId
+             → Lead found → Form pre-filled + "Edit my details" shown
+             → User edits fields
+             → Clicks "Update" → API: PUT /leads/:visitorId
+             → Success message + Form closes
+```
+
+**Optional Field Clearing:**
+```
+Edit mode → Remove company name (empty string)
+         → Click "Update"
+         → API receives: { company: null }
+         → Backend clears the company field
+```
+
+#### API Endpoints Summary
+
+| Method | Endpoint | Purpose | Auth |
+|--------|----------|---------|------|
+| POST | `/api/leads` | Create/upsert lead | X-API-Key |
+| GET | `/api/leads/:visitorId` | Fetch lead | X-API-Key |
+| PUT | `/api/leads/:visitorId` | Update lead details | X-API-Key |
+| GET | `/chat/history/:conversationId` | Conversation history | X-API-Key |
+| POST | `/chat` | Send message | X-API-Key |
+| GET | `/config` | Widget config | X-API-Key |
+
+#### Visitor ID & Lead Persistence
+
+- **Visitor ID**: UUID v4 format, stored in localStorage, persists across sessions
+- **Lead Data**: Stored on backend, retrieved on widget mount
+- **Conversation ID**: Optional field, returned by API if provided
+- **Storage Keys**: 
+  - `greeto_visitor_id` - UUID for visitor tracking
+  - `greeto_conversation_id` - Current conversation ID
 
 ### v1.1.0 - Enhanced Theming & Accessibility
 - ✨ **Contrast-Aware Text Colors** - Automatic text color calculation based on background luminance (WCAG formula)
