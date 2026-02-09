@@ -5,22 +5,16 @@
 import { useState, useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
+import LeadForm from './LeadForm';
 import type { Message, ChatResponse } from '../types/chat';
-import apiClient from '../config/api';
+import type { LeadSubmitResponse, LeadFormData } from '../types/lead';
+import apiClient, { getLead } from '../config/api';
+import { getVisitorId } from '../utils/uuid';
 
 interface ChatWindowProps {
   onClose?: () => void;
   minimizeIcon: string;
 }
-
-const getVisitorId = (): string => {
-  let visitorId = sessionStorage.getItem('greeto_visitor_id');
-  if (!visitorId) {
-    visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    sessionStorage.setItem('greeto_visitor_id', visitorId);
-  }
-  return visitorId;
-};
 
 function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const welcomeMessage =
@@ -34,6 +28,9 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [visitorId] = useState<string>(getVisitorId());
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [leadData, setLeadData] = useState<LeadFormData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -44,9 +41,37 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     scrollToBottom();
   }, [messages]);
 
+  // ✅ Check for existing lead on component mount
+  useEffect(() => {
+    const checkExistingLead = async () => {
+      try {
+        const lead = await getLead(visitorId);
+        if (lead) {
+          console.log('[Greeto Widget] Found existing lead:', lead);
+          // Convert backend lead to form data format
+          const formData: LeadFormData = {
+            name: lead.name,
+            email: lead.email,
+            phone: lead.phone || '',
+            company: lead.company || '',
+          };
+          setLeadData(formData);
+          setLeadSubmitted(true);
+        } else {
+          console.log('[Greeto Widget] No existing lead found');
+        }
+      } catch (error) {
+        console.error('[Greeto Widget] Error checking for existing lead:', error);
+        // Continue normally if check fails
+      }
+    };
+
+    checkExistingLead();
+  }, [visitorId]);
+
   useEffect(() => {
     const loadConversationHistory = async () => {
-      const savedConversationId = sessionStorage.getItem('greeto_conversation_id');
+      const savedConversationId = localStorage.getItem('greeto_conversation_id');
       if (!savedConversationId) return;
 
       try {
@@ -65,7 +90,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         }
       } catch (error) {
         console.error('Failed to load conversation history:', error);
-        sessionStorage.removeItem('greeto_conversation_id');
+        localStorage.removeItem('greeto_conversation_id');
       }
     };
 
@@ -95,7 +120,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
       if (!conversationId && data.conversationId) {
         setConversationId(data.conversationId);
-        sessionStorage.setItem('greeto_conversation_id', data.conversationId.toString());
+        localStorage.setItem('greeto_conversation_id', data.conversationId.toString());
       }
 
       setMessages(prevMessages => [
@@ -112,6 +137,42 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Handle lead form success
+  const handleLeadSubmitSuccess = (response: LeadSubmitResponse) => {
+    console.log('[Greeto Widget] Lead submitted successfully:', response);
+
+    // Store conversation ID if provided in response
+    if (response.lead.conversation_id) {
+      setConversationId(response.lead.conversation_id);
+      localStorage.setItem('greeto_conversation_id', response.lead.conversation_id.toString());
+    }
+
+    // Store lead data for editing
+    const formData: LeadFormData = {
+      name: response.lead.name,
+      email: response.lead.email,
+      phone: response.lead.phone || '',
+      company: response.lead.company || '',
+    };
+    setLeadData(formData);
+    setLeadSubmitted(true);
+
+    // Close form and add success message
+    setShowLeadForm(false);
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      {
+        role: 'assistant',
+        content: 'Thanks — we\'ll reach out soon. Your details have been saved!',
+      },
+    ]);
+
+    // Scroll to bottom to show success message
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   return (
@@ -173,15 +234,37 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input - Fixed at bottom */}
-      <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSend={sendMessage}
-          disabled={loading}
-        />
-      </div>
+      {/* Lead Form - Inline panel (replaces input when open) */}
+      {showLeadForm ? (
+        <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 max-h-[60%] overflow-hidden flex flex-col">
+          <LeadForm
+            visitorId={visitorId}
+            conversationId={conversationId}
+            initialData={leadData || undefined}
+            isEditMode={leadSubmitted}
+            onSuccess={handleLeadSubmitSuccess}
+            onCancel={() => setShowLeadForm(false)}
+          />
+        </div>
+      ) : (
+        <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 flex flex-col gap-2">
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSend={sendMessage}
+            disabled={loading}
+          />
+          {/* Lead form button */}
+          <button
+            onClick={() => setShowLeadForm(true)}
+            className="w-full px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
+            aria-label={leadSubmitted ? 'Edit your details' : 'Leave your details'}
+          >
+            {leadSubmitted ? 'Edit my details' : 'Leave my details'}
+          </button>
+        </div>
+      )}
 
       {/* Powered by Greeto - branding*/}
       <div className="px-4 py-3 text-center border-t border-gray-200 bg-gradient-to-b from-white to-gray-50">
