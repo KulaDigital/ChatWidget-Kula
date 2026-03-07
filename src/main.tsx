@@ -6,7 +6,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ChatWidget from './components/ChatWidget';
 import './index.css';
-import { setApiKey } from './config/api';
+import { setApiKey, fetchClientAndSubscriptionStatus } from './config/api';
 import apiClient from './config/api';
 
 console.log('[Greeto Chat DEV] Running in development mode');
@@ -35,19 +35,42 @@ const getApiKey = (): string | null => {
   return null;
 };
 
-// ✅ Fetch widget config from backend
+// ✅ Check client/subscription status first
+const checkClientStatus = async (): Promise<{ clientStatus?: string; subscriptionStatus?: string; shouldHide: boolean }> => {
+  try {
+    console.log('[Greeto Chat DEV] Checking client/subscription status...');
+    const { clientStatus, subscriptionStatus } = await fetchClientAndSubscriptionStatus();
+    console.log('[Greeto Chat DEV] Status check result:', { clientStatus, subscriptionStatus });
+
+    // Hide widget if client is inactive AND subscription is expired or inactive
+    const shouldHide = clientStatus === 'inactive' && (subscriptionStatus === 'expired' || subscriptionStatus === 'inactive');
+    if (shouldHide) {
+      console.warn('[Greeto Chat DEV] Widget will be hidden: client inactive and subscription', subscriptionStatus);
+    }
+
+    return { clientStatus, subscriptionStatus, shouldHide };
+  } catch (error: any) {
+    console.error('[Greeto Chat DEV] Failed to check client status:', error?.message || error);
+    // Default to showing widget if status check fails
+    return { shouldHide: false };
+  }
+};
+
+// ✅ Fetch widget config from backend (only called if statuses are active)
 const fetchWidgetConfig = async (apiKey: string) => {
   try {
-    console.log('[Greeto Chat DEV] Fetching widget config...');
+    console.log('[Greeto Chat DEV] Fetching widget config (client/subscription are active)...');
     const { data } = await apiClient.get('/widget/config', {
       headers: { 'X-API-Key': apiKey }
     });
-    
+
     console.log('[Greeto Chat DEV] Config fetched:', data);
     return data;
   } catch (error: any) {
-    console.error('[Greeto Chat DEV] Failed to fetch config:', error.message);
-    // Return default config
+    console.error('[Greeto Chat DEV] Failed to fetch config:', error?.message || error);
+    console.debug('[Greeto Chat DEV] Error response data:', error?.response?.data);
+
+    // Return default config as a safe fallback
     return {
       success: true,
       client_name: 'Default Client',
@@ -129,13 +152,21 @@ const initWidget = async () => {
   // Set API key globally
   setApiKey(apiKey);
   
+  // ✅ Check client/subscription status FIRST (before any config fetch)
+  const { shouldHide } = await checkClientStatus();
+
+  if (shouldHide) {
+    console.log('[Greeto Chat DEV] Widget will be hidden based on status check; skipping render');
+    return;
+  }
+
+  // ✅ Fetch config only if statuses are acceptable
+  const config = await fetchWidgetConfig(apiKey);
+
   // Create widget container
   const widgetContainer = document.createElement('div');
   widgetContainer.id = 'greeto-chat-widget-container';
   document.body.appendChild(widgetContainer);
-  
-  // Fetch config from backend
-  const config = await fetchWidgetConfig(apiKey);
   
   // Apply config to container
   applyWidgetConfig(config, widgetContainer);

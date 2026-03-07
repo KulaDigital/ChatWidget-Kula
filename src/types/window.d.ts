@@ -11,8 +11,9 @@ export interface WidgetConfig {
 
 export interface WidgetConfigResponse {
   success: boolean;
-  client_name: string;
-  widget_config: WidgetConfig;
+  client_name?: string;
+  widget_config?: WidgetConfig;
+  error?: string;
 }
 
 // ✅ UPDATED: Constructor now takes apiKey string instead of config object

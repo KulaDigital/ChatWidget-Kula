@@ -56,6 +56,7 @@ const ChatWidget = () => {
     }
   };
 
+
   return (
     <>
       {/* Chat Window - 70% of screen height with spacing from icon */}

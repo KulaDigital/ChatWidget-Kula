@@ -256,20 +256,52 @@ This ensures text remains readable regardless of the primary or secondary color 
 
 The widget expects these API endpoints:
 
-#### 1. **Get Widget Config**
+#### 1. **Get Widget Config** (Enhanced with Starter Suggestions)
 ```
-GET /config
+GET /widget/config
 Headers: x-api-key: {API_KEY}
 
 Response:
 {
   "success": true,
   "client_name": "Company Name",
-  "widget_config": { ... }
+  "widget_config": {
+    "primaryColor": "#2563EB",
+    "secondaryColor": "#1d4ed8",
+    "position": "bottom-right",
+    "welcomeMessage": "Hi! How can I help you today?"
+  },
+  "starter_suggestions": [
+    "What are your pricing plans?",
+    "How do I get started?",
+    "Tell me about features"
+  ]
 }
 ```
 
-#### 2. **Chat Window Design**
+#### 2. **Client/Subscription Status Check** (New)
+```
+GET /chat/client-status
+Headers: x-api-key: {API_KEY}
+
+Response:
+{
+  "client_status": "active",      // 'active' or 'inactive'
+  "subscription_status": "active"  // 'active', 'expired', or 'inactive'
+}
+
+Purpose:
+- Controls widget visibility based on client/subscription status
+- Widget hides if: client_status = 'inactive' AND subscription_status = 'expired' or 'inactive'
+- Useful for disabling widget when subscription expires
+
+Error Response (404):
+{
+  "error": "Client not found"
+}
+```
+
+#### 3. **Chat Window Design**
 
 The chat window header features:
 - **Solid Primary Color** - Uses a single primary color background (no gradient)
@@ -277,7 +309,7 @@ The chat window header features:
 - **Online Status** - Green pulse indicator showing agent availability
 - **Minimize Control** - Button to collapse/restore the chat window
 
-#### 3. **Send Message**
+#### 4. **Send Message**
 ```
 POST /chat
 Headers: x-api-key: {API_KEY}
@@ -594,6 +626,173 @@ CMD ["npm", "run", "preview"]
 ---
 
 ## 📝 Recent Updates
+
+### v1.3.0 - Starter Suggestions & Client Status Management
+- ✨ **Starter Suggestions** - Display contextual starter prompts to users on initial chat load
+- 🎯 **Client/Subscription Status Checking** - Widget visibility controlled by client and subscription status
+- 🔐 **Status-Based Widget Control** - Widget auto-hides if client is inactive AND subscription is expired/inactive
+- 🚀 **Improved Initialization Flow** - Status checks occur before config fetch, with graceful fallbacks
+- 📦 **New API Functions**:
+  - `getWidgetConfig()` - Fetch widget configuration including starter suggestions
+  - `fetchClientAndSubscriptionStatus()` - Check client and subscription status for visibility control
+- 🎨 **Updated Icon** - Replaced inline chat icon SVG with `GreetoIconWhite.svg` asset for better performance
+- ⚡ **Enhanced Scroll Behavior** - Improved initial scroll handling with instant positioning on first load
+- 🔄 **Better Error Handling** - Comprehensive fallback to default config if fetch fails
+
+#### New Features Explained
+
+**Starter Suggestions**
+- Displayed as clickable pills below the welcome message
+- Fetched from widget configuration via `/widget/config` endpoint
+- Only visible on initial load (hidden after first message)
+- User can click to send suggestion as a message
+- Example configuration:
+  ```json
+  {
+    "starter_suggestions": [
+      "What are your pricing plans?",
+      "How do I get started?",
+      "Tell me about features"
+    ]
+  }
+  ```
+
+**Client/Subscription Status Control**
+- Automatically checks status on widget initialization
+- Status check occurs in both production (`embed.ts`) and development (`main.tsx`) modes
+- Widget visibility logic:
+  ```
+  HIDE widget if:  client_status = 'inactive' AND 
+                   (subscription_status = 'expired' OR subscription_status = 'inactive')
+  SHOW widget if:  status check fails (safe default)
+  ```
+- Useful for:
+  - Disabling widget for inactive clients
+  - Preventing widget display when subscription expires
+  - Graceful degradation with fallback behavior
+
+#### API Endpoints Updated
+
+**1. Widget Config (Enhanced)**
+```
+GET /widget/config
+Headers: x-api-key: {API_KEY}
+
+Response:
+{
+  "success": true,
+  "client_name": "Company Name",
+  "widget_config": {
+    "primaryColor": "#2563EB",
+    "secondaryColor": "#1d4ed8",
+    "position": "bottom-right",
+    "welcomeMessage": "Hi! How can I help you today?"
+  },
+  "starter_suggestions": [
+    "Send a message",
+    "View pricing",
+    "Get started now"
+  ]
+}
+```
+
+**2. Client/Subscription Status (New)**
+```
+GET /chat/client-status
+Headers: x-api-key: {API_KEY}
+
+Response:
+{
+  "client_status": "active",      // 'active' or 'inactive'
+  "subscription_status": "active"  // 'active', 'expired', or 'inactive'
+}
+
+Alternative Response Format (backend-specific):
+{
+  "clients": [
+    {
+      "status": "active",
+      "subscription": {
+        "status": "active"
+      }
+    }
+  ]
+}
+```
+
+#### New Files/Changes
+
+1. **`src/assets/GreetoIconWhite.svg`** (29 lines)
+   - New white Greeto icon asset
+   - Used in chat window header instead of inline SVG
+   - Improved performance and maintainability
+
+2. **Modified `src/config/api.ts`**
+   - Added `getWidgetConfig()` - Fetch widget configuration with starter suggestions
+   - Added `fetchClientAndSubscriptionStatus()` - Check client and subscription status
+   - Proper error handling and defensive parsing for different response formats
+
+3. **Modified `src/components/ChatWindow.tsx`**
+   - Added state: `starterSuggestions` (stores fetched suggestions)
+   - Added state: `suggestionsVisible` (toggle visibility)
+   - Added ref: `isInitialLoad` (for improving scroll behavior)
+   - New effect: Fetch starter suggestions on component mount
+   - New function: `handleSuggestionClick()` - Send suggestion as message
+   - Updated scroll behavior with instant positioning on initial render
+   - Display starter suggestions below welcome message
+   - Replaced inline SVG with `GreetoIconWhite` image
+
+4. **Modified `src/embed.ts`** (Production Widget)
+   - Added status check in `init()` method before any other initialization
+   - Widget auto-hides based on client/subscription status
+   - Graceful fallback to default config if fetch fails
+   - Improved error handling with specific backend error messages
+
+5. **Modified `src/main.tsx`** (Development Mode)
+   - Added `checkClientStatus()` function for status verification
+   - Status check occurs before config fetch
+   - Widget skips rendering if status check fails visibility requirements
+   - Better error logging and fallback behavior
+
+#### Updated Widget Initialization Flow
+
+**Production (embed.ts):**
+```
+1. Initialize GreetoChatWidget with API key
+2. ✅ Check client/subscription status
+3. ✅ If status allows → Load CSS stylesheet
+4. ✅ If status allows → Fetch widget config
+5. ✅ Create container & apply config
+6. ✅ Render widget to DOM
+   OR fallback to defaults if config fetch fails
+```
+
+**Development (main.tsx):**
+```
+1. Get API key from script tag or .env
+2. Set API key globally
+3. ✅ Check client/subscription status
+4. ✅ If status allows → Fetch widget config
+5. ✅ Create container & apply config
+6. ✅ Render widget to React root
+   OR use default config if fetch fails
+```
+
+#### Updated API Functions Available
+
+```typescript
+// Widget visibility control
+fetchClientAndSubscriptionStatus() // Check if widget should be visible
+
+// Configuration
+getWidgetConfig() // Fetch widget config including starter_suggestions
+
+// Other existing functions
+setApiKey()
+getLead()
+submitLead()
+updateLead()
+```
 
 ### v1.2.0 - Lead Form Feature & Visitor ID Persistence
 - ✨ **Lead Form Component** - User-invoked form to capture visitor details (name, email, phone, company)
