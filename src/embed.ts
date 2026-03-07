@@ -6,7 +6,7 @@ import './index.css';
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import Widget from './widget';
-import { setApiKey } from './config/api';
+import { setApiKey, fetchClientAndSubscriptionStatus } from './config/api';
 
 interface WidgetConfig {
   primaryColor: string;
@@ -17,8 +17,9 @@ interface WidgetConfig {
 
 interface WidgetConfigResponse {
   success: boolean;
-  client_name: string;
-  widget_config: WidgetConfig;
+  client_name?: string;
+  widget_config?: WidgetConfig;
+  error?: string;
 }
 
 class GreetoChatWidget {
@@ -42,27 +43,53 @@ class GreetoChatWidget {
     try {
       console.log('[Greeto Chat] Initializing widget...');
 
-      // ✅ NEW: Auto-load CSS first
+      // ✅ Check client/subscription status FIRST (before any other calls)
+      const { clientStatus, subscriptionStatus } = await fetchClientAndSubscriptionStatus();
+      console.log('[Greeto Chat] Status check result:', { clientStatus, subscriptionStatus });
+
+      // Hide widget if client is inactive AND subscription is expired or inactive
+      const shouldHide = clientStatus === 'inactive' && (subscriptionStatus === 'expired' || subscriptionStatus === 'inactive');
+      if (shouldHide) {
+        console.warn('[Greeto Chat] Hiding widget: client inactive and subscription', subscriptionStatus);
+        this.isInitialized = true;
+        return;
+      }
+
+      // ✅ Auto-load CSS
       await this.loadStylesheet();
 
-      // Fetch config from backend
-      const config = await this.fetchWidgetConfig();
-      
-      // Create container
-      this.createContainer();
-      
-      // Apply config
-      this.applyConfig(config);
-      
-      // Render widget
-      this.renderWidget();
-      
-      this.isInitialized = true;
-      console.log('[Greeto Chat] Widget initialized successfully');
+      // ✅ Fetch config from backend (only if statuses allow)
+      let config: WidgetConfigResponse | null = null;
+      try {
+        config = await this.fetchWidgetConfig();
+      } catch (cfgError: any) {
+        console.warn('[Greeto Chat] Widget config fetch error:', cfgError?.message || cfgError);
+        // Fallback to default config
+        this.createContainer();
+        this.applyDefaultConfig();
+        this.renderWidget();
+        this.isInitialized = true;
+        return;
+      }
+
+      // Render with fetched config
+      if (config && config.success) {
+        this.createContainer();
+        this.applyConfig(config);
+        this.renderWidget();
+        this.isInitialized = true;
+        console.log('[Greeto Chat] Widget initialized successfully');
+      } else {
+        console.warn('[Greeto Chat] Config returned unsuccessful, using defaults');
+        this.createContainer();
+        this.applyDefaultConfig();
+        this.renderWidget();
+        this.isInitialized = true;
+      }
     } catch (error) {
       console.error('[Greeto Chat] Initialization failed:', error);
-      // Fallback to default config
-      await this.loadStylesheet(); // Ensure CSS loads even on error
+      // Fallback: load CSS, create container, apply defaults, render
+      await this.loadStylesheet();
       this.createContainer();
       this.applyDefaultConfig();
       this.renderWidget();
@@ -124,6 +151,7 @@ class GreetoChatWidget {
     });
   }
 
+
   private async fetchWidgetConfig(): Promise<WidgetConfigResponse> {
     const API_BASE_URL = (window as any).__KULA_CHAT_API_URL__ || 'http://localhost:5001/api';
     
@@ -134,11 +162,20 @@ class GreetoChatWidget {
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`Config fetch failed: ${response.status}`);
+    // Try to parse JSON body for useful backend error messages
+    let body: any = null;
+    try {
+      body = await response.json();
+    } catch (err) {
+      // ignore JSON parse errors
     }
 
-    return response.json();
+    if (!response.ok) {
+      const errMsg = body?.error || `Config fetch failed: ${response.status}`;
+      throw new Error(errMsg);
+    }
+
+    return body as WidgetConfigResponse;
   }
 
   private createContainer(): void {
@@ -159,6 +196,11 @@ class GreetoChatWidget {
     if (!this.container) return;
 
     const widgetConfig = config.widget_config;
+    if (!widgetConfig) {
+      console.warn('[Greeto Chat] No widget_config provided, falling back to defaults');
+      this.applyDefaultConfig();
+      return;
+    }
     
     // Set CSS variables
     this.container.style.setProperty('--color-theme-primary', widgetConfig.primaryColor);

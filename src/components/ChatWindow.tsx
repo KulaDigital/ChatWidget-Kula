@@ -8,8 +8,9 @@ import ChatInput from './ChatInput';
 import LeadForm from './LeadForm';
 import type { Message, ChatResponse } from '../types/chat';
 import type { LeadSubmitResponse, LeadFormData } from '../types/lead';
-import apiClient, { getLead } from '../config/api';
+import apiClient, { getLead, getWidgetConfig } from '../config/api';
 import { getVisitorId } from '../utils/uuid';
+import GreetoIconWhite from '../assets/GreetoIconWhite.svg';
 
 interface ChatWindowProps {
   onClose?: () => void;
@@ -31,15 +32,45 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadSubmitted, setLeadSubmitted] = useState(false);
   const [leadData, setLeadData] = useState<LeadFormData | null>(null);
+  const [starterSuggestions, setStarterSuggestions] = useState<string[]>([]);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const isInitialLoad = useRef(true);
+
+  const scrollToBottom = (instant?: boolean) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (isInitialLoad.current) {
+      // Use setTimeout to ensure DOM has rendered before scrolling
+      setTimeout(() => scrollToBottom(true), 50);
+      isInitialLoad.current = false;
+    } else {
+      scrollToBottom();
+    }
   }, [messages]);
+
+  // ✅ Fetch starter suggestions from widget config on mount
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      try {
+        const config = await getWidgetConfig();
+        if (config?.starter_suggestions) {
+          const suggestions = Array.isArray(config.starter_suggestions)
+            ? config.starter_suggestions
+            : typeof config.starter_suggestions === 'string'
+              ? JSON.parse(config.starter_suggestions)
+              : [];
+          setStarterSuggestions(suggestions);
+        }
+      } catch (error) {
+        console.error('[Greeto Widget] Error fetching starter suggestions:', error);
+      }
+    };
+    fetchSuggestions();
+  }, []);
 
   // ✅ Check for existing lead on component mount
   useEffect(() => {
@@ -76,17 +107,22 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
       try {
         const { data } = await apiClient.get(`/chat/history/${savedConversationId}`);
+        console.log('[Greeto Widget] Conversation history raw:', JSON.stringify(data.messages?.[0]));
 
         if (data.messages && data.messages.length > 0) {
           setConversationId(Number(savedConversationId));
-          const loadedMessages: Message[] = data.messages.map((msg: any) => ({
-            role: msg.role as 'user' | 'assistant',
-            content: msg.content
-          }));
+          const loadedMessages: Message[] = data.messages
+            .map((msg: any) => ({
+              role: msg.role as 'user' | 'assistant',
+              content: msg.content || msg.message || msg.text || ''
+            }))
+            .filter((msg: Message) => msg.content !== '');
           setMessages([
             { role: 'assistant', content: welcomeMessage },
             ...loadedMessages
           ]);
+          // Hide starter suggestions when conversation history exists
+          setSuggestionsVisible(false);
         }
       } catch (error) {
         console.error('Failed to load conversation history:', error);
@@ -105,6 +141,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     setMessages(prevMessages => [...prevMessages, { role: 'user', content: userMessage }]);
     setLoading(true);
     setInput('');
+    setSuggestionsVisible(false);
 
     try {
       const requestBody: any = {
@@ -129,6 +166,45 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
       ]);
     } catch (error: any) {
       console.error('Error sending message:', error);
+      const errorMessage = error.userMessage || 'Sorry, I encountered an error. Please try again.';
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: 'assistant', content: errorMessage }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Handle starter suggestion click
+  const handleSuggestionClick = async (suggestion: string) => {
+    setSuggestionsVisible(false);
+    setMessages(prevMessages => [...prevMessages, { role: 'user', content: suggestion }]);
+    setLoading(true);
+
+    try {
+      const requestBody: any = {
+        message: suggestion,
+        visitorId: visitorId
+      };
+
+      if (conversationId) {
+        requestBody.conversationId = conversationId;
+      }
+
+      const { data } = await apiClient.post<ChatResponse>('/chat', requestBody);
+
+      if (!conversationId && data.conversationId) {
+        setConversationId(data.conversationId);
+        localStorage.setItem('greeto_conversation_id', data.conversationId.toString());
+      }
+
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: 'assistant', content: data.response }
+      ]);
+    } catch (error: any) {
+      console.error('Error sending suggestion:', error);
       const errorMessage = error.userMessage || 'Sorry, I encountered an error. Please try again.';
       setMessages(prevMessages => [
         ...prevMessages,
@@ -181,11 +257,11 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
       <div className="bg-theme-primary text-text-on-primary px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           {/* Avatar */}
-          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm flex-shrink-0">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-            </svg>
-          </div>
+          <img 
+            src={GreetoIconWhite} 
+            alt="Greeto" 
+            className="w-10 h-10 flex-shrink-0"
+          />
 
           <div className="min-w-0">
             <h3 className="font-semibold text-sm">Chat Support</h3>
@@ -217,6 +293,21 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         {messages.map((msg, idx) => (
           <MessageBubble key={idx} role={msg.role} content={msg.content} />
         ))}
+
+        {/* Starter Suggestions - only shown with initial welcome message */}
+        {suggestionsVisible && starterSuggestions.length > 0 && messages.length === 1 && !loading && (
+          <div className="flex flex-wrap gap-2 mt-1 animate-slide-in">
+            {starterSuggestions.map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-theme-primary hover:text-text-on-primary hover:border-theme-primary transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Typing indicator */}
         {loading && (

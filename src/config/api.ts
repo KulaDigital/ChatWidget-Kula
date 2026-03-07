@@ -141,6 +141,22 @@ export const updateLead = async (visitorId: string, updateData: {
  * @param visitorId - Visitor ID
  * @returns Promise with lead data if exists, or null if not found
  */
+/**
+ * ✅ Fetch widget configuration including starter_suggestions
+ * @returns Promise with widget config data
+ */
+export const getWidgetConfig = async () => {
+  try {
+    console.log('[Greeto Widget] Fetching widget config');
+    const { data } = await apiClient.get('/widget/config');
+    console.log('[Greeto Widget] Widget config fetched:', data);
+    return data;
+  } catch (error) {
+    console.error('[Greeto Widget] Failed to fetch widget config:', error);
+    return null;
+  }
+};
+
 export const getLead = async (visitorId: string) => {
   try {
     console.log('[Greeto Widget] Fetching lead for visitor:', visitorId);
@@ -155,6 +171,41 @@ export const getLead = async (visitorId: string) => {
     }
     console.error('[Greeto Widget] Failed to fetch lead:', error);
     throw error;
+  }
+};
+
+/**
+ * ✅ Retrieve client + subscription status using admin endpoints.
+ * The backend should restrict results to the client tied to the API key.
+ * Returns both statuses if available.
+ */
+export const fetchClientAndSubscriptionStatus = async (): Promise<{
+  clientStatus?: string;
+  subscriptionStatus?: string;
+}> => {
+  try {
+    console.log('[Greeto Widget] Fetching client/subscription status via /chat/client-status');
+
+    const { data } = await apiClient.get('/chat/client-status');
+    console.log('[Greeto Widget] /chat/client-status response:', data);
+
+    // Defensive parsing: different backends may return different shapes
+    // Try common field names first
+    let clientStatus = data?.client_status || data?.client?.status || data?.status || data?.clientStatus;
+    let subscriptionStatus = data?.subscription_status || data?.subscription?.status || data?.subscriptionStatus;
+
+    // Fallback: if response contains a clients array, pick the first
+    if ((!clientStatus || !subscriptionStatus) && Array.isArray(data?.clients) && data.clients.length > 0) {
+      const c = data.clients[0];
+      clientStatus = clientStatus || c.status;
+      subscriptionStatus = subscriptionStatus || c.subscription?.status;
+    }
+
+    console.log('[Greeto Widget] Parsed statuses -> client:', clientStatus, 'subscription:', subscriptionStatus);
+    return { clientStatus, subscriptionStatus };
+  } catch (error) {
+    console.error('[Greeto Widget] Error fetching client/subscription status:', error);
+    return {};
   }
 };
 
