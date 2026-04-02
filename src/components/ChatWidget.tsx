@@ -38,21 +38,21 @@ const ChatWidget = () => {
     switch (position) {
       case 'bottom-left':
         return isWindow 
-          ? `bottom-24 left-6`
-          : `bottom-6 left-6`;
+          ? `bottom-20 left-4`
+          : `bottom-4 left-4`;
       case 'top-right':
         return isWindow 
-          ? `top-24 right-6`
-          : `top-6 right-6`;
+          ? `top-20 right-4`
+          : `top-4 right-4`;
       case 'top-left':
         return isWindow 
-          ? `top-24 left-6`
-          : `top-6 left-6`;
+          ? `top-20 left-4`
+          : `top-4 left-4`;
       case 'bottom-right':
       default:
         return isWindow 
-          ? `bottom-24 right-6`
-          : `bottom-6 right-6`;
+          ? `bottom-20 right-4`
+          : `bottom-4 right-4`;
     }
   };
 
@@ -67,7 +67,7 @@ const ChatWidget = () => {
             w-full max-w-[400px] sm:w-[400px]
             h-[70vh]
             max-h-[700px]
-            min-h-[500px]
+            min-h-[400px]
             z-[999998] 
             animate-slide-up
           `}
@@ -81,7 +81,7 @@ const ChatWidget = () => {
         onClick={() => setIsOpen(!isOpen)}
         className={`
           fixed ${getPositionClasses(false)} 
-          w-16 h-16 
+          w-14 h-14 
           bg-transparent
           border-0
           p-0
@@ -99,14 +99,14 @@ const ChatWidget = () => {
           <img 
             src={closeIcon} 
             alt="Close" 
-            className="w-16 h-16 drop-shadow-2xl transition-transform duration-300 group-hover:rotate-90"
+            className="w-14 h-14 drop-shadow-2xl transition-transform duration-300 group-hover:rotate-90"
           />
         ) : (
           // Chat icon
           <img 
             src={chatIcon} 
             alt="Chat" 
-            className="w-16 h-16 drop-shadow-2xl"
+            className="w-14 h-14 drop-shadow-2xl"
           />
         )}
       </button>

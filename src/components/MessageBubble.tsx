@@ -7,14 +7,23 @@ import React from 'react';
 interface MessageBubbleProps {
   role: 'user' | 'assistant';
   content: string;
+  needsHuman?: boolean;
+  leadSubmitted?: boolean;
+  onLeaveDetails?: () => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ role, content }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({
+  role,
+  content,
+  needsHuman,
+  leadSubmitted,
+  onLeaveDetails,
+}) => {
   if (role === 'user') {
     return (
       <div className="flex justify-end animate-slide-in">
-        <div className="bg-theme-primary text-text-on-primary px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] shadow-md">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{content}</p>
+        <div className="bg-theme-primary text-text-on-primary px-3 py-1.5 rounded-2xl rounded-tr-sm max-w-[85%] shadow-md">
+          <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">{content}</p>
         </div>
       </div>
     );
@@ -22,8 +31,21 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ role, content }) => {
 
   return (
     <div className="flex justify-start animate-slide-in">
-      <div className="bg-theme-secondary text-text-on-secondary px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-[85%] shadow-sm">
-        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{content}</p>
+      <div className="bg-theme-secondary text-text-on-secondary px-3 py-1.5 rounded-2xl rounded-tl-sm max-w-[85%] shadow-sm">
+        <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">{content}</p>
+        {needsHuman && onLeaveDetails && (
+          <div className="mt-2">
+            <p className="text-xs text-text-on-secondary/70 mb-1">
+              If you want our team to contact you ASAP, please leave your details below.
+            </p>
+            <button
+              onClick={onLeaveDetails}
+              className="px-3 py-1 text-xs font-semibold bg-theme-primary text-text-on-primary rounded-full hover:opacity-90 transition-opacity duration-200 active:scale-95 cursor-pointer"
+            >
+              {leadSubmitted ? 'Edit my details' : 'Leave my details'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

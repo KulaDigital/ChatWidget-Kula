@@ -151,8 +151,8 @@ const LeadForm: React.FC<LeadFormProps> = ({
   return (
     <div className="flex flex-col h-full bg-gray-50 rounded-lg">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2 px-4 pt-4 flex-shrink-0">
-        <h3 className="font-semibold text-gray-900">
+      <div className="flex items-center justify-between mb-1.5 px-3 pt-3 flex-shrink-0">
+        <h3 className="font-semibold text-sm text-gray-900">
           {isEditMode ? 'Edit your details' : 'Leave your details'}
         </h3>
         <button
@@ -160,26 +160,26 @@ const LeadForm: React.FC<LeadFormProps> = ({
           className="text-gray-400 hover:text-gray-600 transition-colors"
           aria-label="Close lead form"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
         {/* Error message */}
         {apiError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-md mb-3">
-            <p className="text-sm text-red-700">{apiError}</p>
+          <div className="p-2.5 bg-red-50 border border-red-200 rounded-md mb-2">
+            <p className="text-xs text-red-700">{apiError}</p>
           </div>
         )}
 
         {/* Form */}
-        <form id="lead-form" onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form id="lead-form" onSubmit={handleSubmit} className="flex flex-col gap-2">
         {/* Name field */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="lead-name" className="text-sm font-medium text-gray-700">
+          <label htmlFor="lead-name" className="text-xs font-medium text-gray-700">
             Name *
           </label>
           <input
@@ -190,7 +190,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
             onChange={handleChange}
             placeholder="Your full name"
             disabled={loading}
-            className={`px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary transition-colors ${
+            className={`px-2.5 py-1.5 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary transition-colors ${
               errors.name
                 ? 'border-red-300 focus:ring-red-200'
                 : 'border-gray-300 focus:border-theme-primary'
@@ -201,7 +201,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
 
         {/* Email field */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="lead-email" className="text-sm font-medium text-gray-700">
+          <label htmlFor="lead-email" className="text-xs font-medium text-gray-700">
             Email *
           </label>
           <input
@@ -212,7 +212,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
             onChange={handleChange}
             placeholder="your@email.com"
             disabled={loading}
-            className={`px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary transition-colors ${
+            className={`px-2.5 py-1.5 border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary transition-colors ${
               errors.email
                 ? 'border-red-300 focus:ring-red-200'
                 : 'border-gray-300 focus:border-theme-primary'
@@ -223,7 +223,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
 
         {/* Phone field (optional) */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="lead-phone" className="text-sm font-medium text-gray-700">
+          <label htmlFor="lead-phone" className="text-xs font-medium text-gray-700">
             Phone
           </label>
           <input
@@ -234,13 +234,13 @@ const LeadForm: React.FC<LeadFormProps> = ({
             onChange={handleChange}
             placeholder="+1234567890 (optional)"
             disabled={loading}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
         </div>
 
         {/* Company field (optional) */}
         <div className="flex flex-col gap-1">
-          <label htmlFor="lead-company" className="text-sm font-medium text-gray-700">
+          <label htmlFor="lead-company" className="text-xs font-medium text-gray-700">
             Company
           </label>
           <input
@@ -251,19 +251,19 @@ const LeadForm: React.FC<LeadFormProps> = ({
             onChange={handleChange}
             placeholder="Your company (optional)"
             disabled={loading}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
         </div>
         </form>
       </div>
 
       {/* Action buttons - Fixed at bottom */}
-      <div className="flex gap-2 px-4 pb-4 flex-shrink-0 border-t border-gray-200 pt-3">
+      <div className="flex gap-1.5 px-3 pb-3 flex-shrink-0 border-t border-gray-200 pt-2">
         <button
           type="submit"
           form="lead-form"
           disabled={!isFormValid || loading}
-          className="flex-1 bg-theme-primary text-text-on-primary px-4 py-2 rounded-md font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-colors active:scale-95"
+          className="flex-1 bg-theme-primary text-text-on-primary px-3 py-1.5 rounded-md font-semibold text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-colors active:scale-95"
         >
           {loading ? 'Updating...' : isEditMode ? 'Update' : 'Submit'}
         </button>
@@ -271,7 +271,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-colors active:scale-95"
+          className="flex-1 bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-semibold text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-colors active:scale-95"
         >
           Cancel
         </button>

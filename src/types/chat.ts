@@ -4,6 +4,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   sources?: Source[];  // ✅ Add sources to message
+  needsHuman?: boolean; // ✅ Flag when bot can't answer
 }
 
 // ✅ Add Source interface to match your API response
@@ -19,6 +20,7 @@ export interface ChatResponse {
   clientName: string;
   sources?: Source[];  // ✅ Sources from RAG
   contextsUsed?: number;  // ✅ How many chunks were used
+  needsHuman?: boolean;  // ✅ Flag when bot can't answer the question
 }
 
 // ✅ Add conversation history type
