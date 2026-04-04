@@ -89,4 +89,124 @@ export const setBaseUrl = (newBaseUrl: string) => {
  */
 export const getCurrentApiKey = () => currentApiKey;
 
+/**
+ * ✅ Submit lead form data
+ * @param leadData - Lead form data with visitorId, name, email, phone, company
+ * @returns Promise with lead submission response
+ */
+export const submitLead = async (leadData: {
+  visitorId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  conversationId?: number;
+}) => {
+  try {
+    console.log('[Greeto Widget] Submitting lead:', leadData);
+    const { data } = await apiClient.post('/leads', leadData);
+    console.log('[Greeto Widget] Lead submitted successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('[Greeto Widget] Lead submission failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Update lead details
+ * @param visitorId - Visitor ID
+ * @param updateData - Partial lead update (name, email, phone, company)
+ * @returns Promise with updated lead response
+ */
+export const updateLead = async (visitorId: string, updateData: {
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+}) => {
+  try {
+    console.log('[Greeto Widget] Updating lead:', visitorId, updateData);
+    const { data } = await apiClient.put(`/leads/${visitorId}`, updateData);
+    console.log('[Greeto Widget] Lead updated successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('[Greeto Widget] Lead update failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Get lead details for current visitor
+ * @param visitorId - Visitor ID
+ * @returns Promise with lead data if exists, or null if not found
+ */
+/**
+ * ✅ Fetch widget configuration including starter_suggestions
+ * @returns Promise with widget config data
+ */
+export const getWidgetConfig = async () => {
+  try {
+    console.log('[Greeto Widget] Fetching widget config');
+    const { data } = await apiClient.get('/widget/config');
+    console.log('[Greeto Widget] Widget config fetched:', data);
+    return data;
+  } catch (error) {
+    console.error('[Greeto Widget] Failed to fetch widget config:', error);
+    return null;
+  }
+};
+
+export const getLead = async (visitorId: string) => {
+  try {
+    console.log('[Greeto Widget] Fetching lead for visitor:', visitorId);
+    const { data } = await apiClient.get(`/leads/${visitorId}`);
+    console.log('[Greeto Widget] Lead fetched successfully:', data);
+    return data.lead || null;
+  } catch (error: any) {
+    // 404 means lead doesn't exist yet, which is not an error
+    if (error.response?.status === 404) {
+      console.log('[Greeto Widget] No existing lead found for visitor');
+      return null;
+    }
+    console.error('[Greeto Widget] Failed to fetch lead:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ Retrieve client + subscription status using admin endpoints.
+ * The backend should restrict results to the client tied to the API key.
+ * Returns both statuses if available.
+ */
+export const fetchClientAndSubscriptionStatus = async (): Promise<{
+  clientStatus?: string;
+  subscriptionStatus?: string;
+}> => {
+  try {
+    console.log('[Greeto Widget] Fetching client/subscription status via /chat/client-status');
+
+    const { data } = await apiClient.get('/chat/client-status');
+    console.log('[Greeto Widget] /chat/client-status response:', data);
+
+    // Defensive parsing: different backends may return different shapes
+    // Try common field names first
+    let clientStatus = data?.client_status || data?.client?.status || data?.status || data?.clientStatus;
+    let subscriptionStatus = data?.subscription_status || data?.subscription?.status || data?.subscriptionStatus;
+
+    // Fallback: if response contains a clients array, pick the first
+    if ((!clientStatus || !subscriptionStatus) && Array.isArray(data?.clients) && data.clients.length > 0) {
+      const c = data.clients[0];
+      clientStatus = clientStatus || c.status;
+      subscriptionStatus = subscriptionStatus || c.subscription?.status;
+    }
+
+    console.log('[Greeto Widget] Parsed statuses -> client:', clientStatus, 'subscription:', subscriptionStatus);
+    return { clientStatus, subscriptionStatus };
+  } catch (error) {
+    console.error('[Greeto Widget] Error fetching client/subscription status:', error);
+    return {};
+  }
+};
+
 export default apiClient;

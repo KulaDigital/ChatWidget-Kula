@@ -5,22 +5,17 @@
 import { useState, useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
+import LeadForm from './LeadForm';
 import type { Message, ChatResponse } from '../types/chat';
-import apiClient from '../config/api';
+import type { LeadSubmitResponse, LeadFormData } from '../types/lead';
+import apiClient, { getLead, getWidgetConfig } from '../config/api';
+import { getVisitorId } from '../utils/uuid';
+import GreetoIconWhite from '../assets/GreetoIconWhite.svg';
 
 interface ChatWindowProps {
   onClose?: () => void;
   minimizeIcon: string;
 }
-
-const getVisitorId = (): string => {
-  let visitorId = sessionStorage.getItem('greeto_visitor_id');
-  if (!visitorId) {
-    visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    sessionStorage.setItem('greeto_visitor_id', visitorId);
-  }
-  return visitorId;
-};
 
 function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const welcomeMessage =
@@ -34,38 +29,104 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [visitorId] = useState<string>(getVisitorId());
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [leadData, setLeadData] = useState<LeadFormData | null>(null);
+  const [starterSuggestions, setStarterSuggestions] = useState<string[]>([]);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const isInitialLoad = useRef(true);
+
+  const scrollToBottom = (instant?: boolean) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (isInitialLoad.current) {
+      // Use setTimeout to ensure DOM has rendered before scrolling
+      setTimeout(() => scrollToBottom(true), 50);
+      isInitialLoad.current = false;
+    } else {
+      scrollToBottom();
+    }
   }, [messages]);
+
+  // ✅ Fetch starter suggestions from widget config on mount
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      try {
+        const config = await getWidgetConfig();
+        if (config?.starter_suggestions) {
+          const suggestions = Array.isArray(config.starter_suggestions)
+            ? config.starter_suggestions
+            : typeof config.starter_suggestions === 'string'
+              ? JSON.parse(config.starter_suggestions)
+              : [];
+          setStarterSuggestions(suggestions);
+        }
+      } catch (error) {
+        console.error('[Greeto Widget] Error fetching starter suggestions:', error);
+      }
+    };
+    fetchSuggestions();
+  }, []);
+
+  // ✅ Check for existing lead on component mount
+  useEffect(() => {
+    const checkExistingLead = async () => {
+      try {
+        const lead = await getLead(visitorId);
+        if (lead) {
+          console.log('[Greeto Widget] Found existing lead:', lead);
+          // Convert backend lead to form data format
+          const formData: LeadFormData = {
+            name: lead.name,
+            email: lead.email,
+            phone: lead.phone || '',
+            company: lead.company || '',
+          };
+          setLeadData(formData);
+          setLeadSubmitted(true);
+        } else {
+          console.log('[Greeto Widget] No existing lead found');
+        }
+      } catch (error) {
+        console.error('[Greeto Widget] Error checking for existing lead:', error);
+        // Continue normally if check fails
+      }
+    };
+
+    checkExistingLead();
+  }, [visitorId]);
 
   useEffect(() => {
     const loadConversationHistory = async () => {
-      const savedConversationId = sessionStorage.getItem('greeto_conversation_id');
+      const savedConversationId = localStorage.getItem('greeto_conversation_id');
       if (!savedConversationId) return;
 
       try {
         const { data } = await apiClient.get(`/chat/history/${savedConversationId}`);
+        console.log('[Greeto Widget] Conversation history raw:', JSON.stringify(data.messages?.[0]));
 
         if (data.messages && data.messages.length > 0) {
           setConversationId(Number(savedConversationId));
-          const loadedMessages: Message[] = data.messages.map((msg: any) => ({
-            role: msg.role as 'user' | 'assistant',
-            content: msg.content
-          }));
+          const loadedMessages: Message[] = data.messages
+            .map((msg: any) => ({
+              role: msg.role as 'user' | 'assistant',
+              content: msg.content || msg.message || msg.text || ''
+            }))
+            .filter((msg: Message) => msg.content !== '');
           setMessages([
             { role: 'assistant', content: welcomeMessage },
             ...loadedMessages
           ]);
+          // Hide starter suggestions when conversation history exists
+          setSuggestionsVisible(false);
         }
       } catch (error) {
         console.error('Failed to load conversation history:', error);
-        sessionStorage.removeItem('greeto_conversation_id');
+        localStorage.removeItem('greeto_conversation_id');
       }
     };
 
@@ -80,6 +141,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     setMessages(prevMessages => [...prevMessages, { role: 'user', content: userMessage }]);
     setLoading(true);
     setInput('');
+    setSuggestionsVisible(false);
 
     try {
       const requestBody: any = {
@@ -95,12 +157,12 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
       if (!conversationId && data.conversationId) {
         setConversationId(data.conversationId);
-        sessionStorage.setItem('greeto_conversation_id', data.conversationId.toString());
+        localStorage.setItem('greeto_conversation_id', data.conversationId.toString());
       }
 
       setMessages(prevMessages => [
         ...prevMessages,
-        { role: 'assistant', content: data.response }
+        { role: 'assistant', content: data.response, needsHuman: data.needsHuman ?? false }
       ]);
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -114,21 +176,96 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     }
   };
 
+  // ✅ Handle starter suggestion click
+  const handleSuggestionClick = async (suggestion: string) => {
+    setSuggestionsVisible(false);
+    setMessages(prevMessages => [...prevMessages, { role: 'user', content: suggestion }]);
+    setLoading(true);
+
+    try {
+      const requestBody: any = {
+        message: suggestion,
+        visitorId: visitorId
+      };
+
+      if (conversationId) {
+        requestBody.conversationId = conversationId;
+      }
+
+      const { data } = await apiClient.post<ChatResponse>('/chat', requestBody);
+
+      if (!conversationId && data.conversationId) {
+        setConversationId(data.conversationId);
+        localStorage.setItem('greeto_conversation_id', data.conversationId.toString());
+      }
+
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: 'assistant', content: data.response, needsHuman: data.needsHuman ?? false }
+      ]);
+    } catch (error: any) {
+      console.error('Error sending suggestion:', error);
+      const errorMessage = error.userMessage || 'Sorry, I encountered an error. Please try again.';
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { role: 'assistant', content: errorMessage }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Handle lead form success
+  const handleLeadSubmitSuccess = (response: LeadSubmitResponse) => {
+    console.log('[Greeto Widget] Lead submitted successfully:', response);
+
+    // Store conversation ID if provided in response
+    if (response.lead.conversation_id) {
+      setConversationId(response.lead.conversation_id);
+      localStorage.setItem('greeto_conversation_id', response.lead.conversation_id.toString());
+    }
+
+    // Store lead data for editing
+    const formData: LeadFormData = {
+      name: response.lead.name,
+      email: response.lead.email,
+      phone: response.lead.phone || '',
+      company: response.lead.company || '',
+    };
+    setLeadData(formData);
+    setLeadSubmitted(true);
+
+    // Close form and add success message
+    setShowLeadForm(false);
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      {
+        role: 'assistant',
+        content: 'Thanks — we\'ll reach out soon. Your details have been saved!',
+      },
+    ]);
+
+    // Scroll to bottom to show success message
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   return (
     <div className="h-full w-full max-w-[400px] bg-white rounded-2xl shadow-widget-lg flex flex-col overflow-hidden">
       {/* Header - Fixed at top with minimize icon */}
-      <div className="bg-gradient-to-r from-theme-primary to-theme-secondary text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="bg-theme-primary text-text-on-primary px-3 py-2 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
           {/* Avatar */}
-          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm flex-shrink-0">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-            </svg>
-          </div>
+          <img 
+            src={GreetoIconWhite} 
+            alt="Greeto" 
+            className="w-8 h-8 flex-shrink-0"
+          />
 
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm">Chat Support</h3>
-            <div className="flex items-center gap-1.5 text-xs text-white/80">
+            <h3 className="font-semibold text-xs">Chat Support</h3>
+            <div className="flex items-center gap-1 text-[10px] text-white/80">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0"></div>
               <span>Online</span>
             </div>
@@ -139,28 +276,50 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         {onClose && (
           <button
             onClick={onClose}
-            className="bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-2 transition-all duration-200 flex-shrink-0 group"
+            className="bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 flex-shrink-0 group"
             aria-label="Minimize chat"
           >
             <img
               src={minimizeIcon}
               alt="Minimize"
-              className="w-5 h-5 block transition-transform duration-200 group-hover:scale-110"
+              className="w-4 h-4 block transition-transform duration-200 group-hover:scale-110"
             />
           </button>
         )}
       </div>
 
       {/* Messages - Flexible scrollable area (takes remaining space) */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-gradient-to-b from-gray-50 to-white min-h-0">
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 bg-gradient-to-b from-gray-50 to-white min-h-0">
         {messages.map((msg, idx) => (
-          <MessageBubble key={idx} role={msg.role} content={msg.content} />
+          <MessageBubble
+            key={idx}
+            role={msg.role}
+            content={msg.content}
+            needsHuman={msg.needsHuman}
+            leadSubmitted={leadSubmitted}
+            onLeaveDetails={() => setShowLeadForm(true)}
+          />
         ))}
+
+        {/* Starter Suggestions - only shown with initial welcome message */}
+        {suggestionsVisible && starterSuggestions.length > 0 && messages.length === 1 && !loading && (
+          <div className="flex flex-wrap gap-1.5 mt-1 animate-slide-in">
+            {starterSuggestions.map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="px-2.5 py-1 text-xs bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-theme-primary hover:text-text-on-primary hover:border-theme-primary transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Typing indicator */}
         {loading && (
           <div className="flex justify-start animate-slide-in">
-            <div className="bg-gray-200 rounded-2xl px-4 py-3 flex items-center gap-2">
+            <div className="bg-gray-200 rounded-2xl px-3 py-2 flex items-center gap-2">
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -173,18 +332,31 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input - Fixed at bottom */}
-      <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0">
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSend={sendMessage}
-          disabled={loading}
-        />
-      </div>
+      {/* Lead Form - Inline panel (replaces input when open) */}
+      {showLeadForm ? (
+        <div className="p-3 bg-white border-t border-gray-100 flex-shrink-0 max-h-[60%] overflow-hidden flex flex-col">
+          <LeadForm
+            visitorId={visitorId}
+            conversationId={conversationId}
+            initialData={leadData || undefined}
+            isEditMode={leadSubmitted}
+            onSuccess={handleLeadSubmitSuccess}
+            onCancel={() => setShowLeadForm(false)}
+          />
+        </div>
+      ) : (
+        <div className="p-3 bg-white border-t border-gray-100 flex-shrink-0 flex flex-col gap-1.5">
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSend={sendMessage}
+            disabled={loading}
+          />
+        </div>
+      )}
 
       {/* Powered by Greeto - branding*/}
-      <div className="px-4 py-3 text-center border-t border-gray-200 bg-gradient-to-b from-white to-gray-50">
+      <div className="px-3 py-1.5 text-center border-t border-gray-200 bg-gradient-to-b from-white to-gray-50">
         <a
           href="https://greeto.ai"
           target="_blank"

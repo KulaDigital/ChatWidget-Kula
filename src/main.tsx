@@ -6,7 +6,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ChatWidget from './components/ChatWidget';
 import './index.css';
-import { setApiKey } from './config/api';
+import { setApiKey, fetchClientAndSubscriptionStatus } from './config/api';
 import apiClient from './config/api';
 
 console.log('[Greeto Chat DEV] Running in development mode');
@@ -35,19 +35,42 @@ const getApiKey = (): string | null => {
   return null;
 };
 
-// ✅ Fetch widget config from backend
+// ✅ Check client/subscription status first
+const checkClientStatus = async (): Promise<{ clientStatus?: string; subscriptionStatus?: string; shouldHide: boolean }> => {
+  try {
+    console.log('[Greeto Chat DEV] Checking client/subscription status...');
+    const { clientStatus, subscriptionStatus } = await fetchClientAndSubscriptionStatus();
+    console.log('[Greeto Chat DEV] Status check result:', { clientStatus, subscriptionStatus });
+
+    // Hide widget if client is inactive AND subscription is expired or inactive
+    const shouldHide = clientStatus === 'inactive' && (subscriptionStatus === 'expired' || subscriptionStatus === 'inactive');
+    if (shouldHide) {
+      console.warn('[Greeto Chat DEV] Widget will be hidden: client inactive and subscription', subscriptionStatus);
+    }
+
+    return { clientStatus, subscriptionStatus, shouldHide };
+  } catch (error: any) {
+    console.error('[Greeto Chat DEV] Failed to check client status:', error?.message || error);
+    // Default to showing widget if status check fails
+    return { shouldHide: false };
+  }
+};
+
+// ✅ Fetch widget config from backend (only called if statuses are active)
 const fetchWidgetConfig = async (apiKey: string) => {
   try {
-    console.log('[Greeto Chat DEV] Fetching widget config...');
+    console.log('[Greeto Chat DEV] Fetching widget config (client/subscription are active)...');
     const { data } = await apiClient.get('/widget/config', {
       headers: { 'X-API-Key': apiKey }
     });
-    
+
     console.log('[Greeto Chat DEV] Config fetched:', data);
     return data;
   } catch (error: any) {
-    console.error('[Greeto Chat DEV] Failed to fetch config:', error.message);
-    // Return default config
+    console.error('[Greeto Chat DEV] Failed to fetch config:', error?.message || error);
+    console.debug('[Greeto Chat DEV] Error response data:', error?.response?.data);
+
+    // Return default config as a safe fallback
     return {
       success: true,
       client_name: 'Default Client',
@@ -77,6 +100,12 @@ const applyWidgetConfig = (config: any, container: HTMLElement) => {
     : '#dbeafe';
   container.style.setProperty('--color-theme-primary-light', lightColor);
   
+  // Calculate contrast text colors based on background luminance
+  const primaryTextColor = getContrastTextColor(widgetConfig.primaryColor);
+  const secondaryTextColor = getContrastTextColor(widgetConfig.secondaryColor);
+  container.style.setProperty('--color-text-on-primary', primaryTextColor);
+  container.style.setProperty('--color-text-on-secondary', secondaryTextColor);
+  
   // Store position and welcome message as data attributes
   container.setAttribute('data-position', widgetConfig.position);
   container.setAttribute('data-welcome-message', widgetConfig.welcomeMessage);
@@ -94,6 +123,23 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
   } : null;
 };
 
+// ✅ Helper: Calculate luminance to determine if text should be white or dark
+const getLuminance = (hex: string): number => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0.5; // Default to mid-range
+  
+  // Calculate relative luminance using WCAG formula
+  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+  return luminance;
+};
+
+// ✅ Helper: Determine text color based on background brightness
+const getContrastTextColor = (hex: string): string => {
+  const luminance = getLuminance(hex);
+  // If luminance > 0.5, use dark text; otherwise use white text
+  return luminance > 0.5 ? '#1f2937' : '#ffffff';
+};
+
 // ✅ Initialize widget
 const initWidget = async () => {
   const apiKey = getApiKey();
@@ -106,13 +152,21 @@ const initWidget = async () => {
   // Set API key globally
   setApiKey(apiKey);
   
+  // ✅ Check client/subscription status FIRST (before any config fetch)
+  const { shouldHide } = await checkClientStatus();
+
+  if (shouldHide) {
+    console.log('[Greeto Chat DEV] Widget will be hidden based on status check; skipping render');
+    return;
+  }
+
+  // ✅ Fetch config only if statuses are acceptable
+  const config = await fetchWidgetConfig(apiKey);
+
   // Create widget container
   const widgetContainer = document.createElement('div');
   widgetContainer.id = 'greeto-chat-widget-container';
   document.body.appendChild(widgetContainer);
-  
-  // Fetch config from backend
-  const config = await fetchWidgetConfig(apiKey);
   
   // Apply config to container
   applyWidgetConfig(config, widgetContainer);

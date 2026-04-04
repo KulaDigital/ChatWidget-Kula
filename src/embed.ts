@@ -6,7 +6,7 @@ import './index.css';
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import Widget from './widget';
-import { setApiKey } from './config/api';
+import { setApiKey, fetchClientAndSubscriptionStatus } from './config/api';
 
 interface WidgetConfig {
   primaryColor: string;
@@ -17,8 +17,9 @@ interface WidgetConfig {
 
 interface WidgetConfigResponse {
   success: boolean;
-  client_name: string;
-  widget_config: WidgetConfig;
+  client_name?: string;
+  widget_config?: WidgetConfig;
+  error?: string;
 }
 
 class GreetoChatWidget {
@@ -42,27 +43,53 @@ class GreetoChatWidget {
     try {
       console.log('[Greeto Chat] Initializing widget...');
 
-      // ✅ NEW: Auto-load CSS first
+      // ✅ Check client/subscription status FIRST (before any other calls)
+      const { clientStatus, subscriptionStatus } = await fetchClientAndSubscriptionStatus();
+      console.log('[Greeto Chat] Status check result:', { clientStatus, subscriptionStatus });
+
+      // Hide widget if client is inactive AND subscription is expired or inactive
+      const shouldHide = clientStatus === 'inactive' && (subscriptionStatus === 'expired' || subscriptionStatus === 'inactive');
+      if (shouldHide) {
+        console.warn('[Greeto Chat] Hiding widget: client inactive and subscription', subscriptionStatus);
+        this.isInitialized = true;
+        return;
+      }
+
+      // ✅ Auto-load CSS
       await this.loadStylesheet();
 
-      // Fetch config from backend
-      const config = await this.fetchWidgetConfig();
-      
-      // Create container
-      this.createContainer();
-      
-      // Apply config
-      this.applyConfig(config);
-      
-      // Render widget
-      this.renderWidget();
-      
-      this.isInitialized = true;
-      console.log('[Greeto Chat] Widget initialized successfully');
+      // ✅ Fetch config from backend (only if statuses allow)
+      let config: WidgetConfigResponse | null = null;
+      try {
+        config = await this.fetchWidgetConfig();
+      } catch (cfgError: any) {
+        console.warn('[Greeto Chat] Widget config fetch error:', cfgError?.message || cfgError);
+        // Fallback to default config
+        this.createContainer();
+        this.applyDefaultConfig();
+        this.renderWidget();
+        this.isInitialized = true;
+        return;
+      }
+
+      // Render with fetched config
+      if (config && config.success) {
+        this.createContainer();
+        this.applyConfig(config);
+        this.renderWidget();
+        this.isInitialized = true;
+        console.log('[Greeto Chat] Widget initialized successfully');
+      } else {
+        console.warn('[Greeto Chat] Config returned unsuccessful, using defaults');
+        this.createContainer();
+        this.applyDefaultConfig();
+        this.renderWidget();
+        this.isInitialized = true;
+      }
     } catch (error) {
       console.error('[Greeto Chat] Initialization failed:', error);
-      // Fallback to default config
-      await this.loadStylesheet(); // Ensure CSS loads even on error
+      // Fallback: load CSS, create container, apply defaults, render
+      await this.loadStylesheet();
       this.createContainer();
       this.applyDefaultConfig();
       this.renderWidget();
@@ -124,6 +151,7 @@ class GreetoChatWidget {
     });
   }
 
+
   private async fetchWidgetConfig(): Promise<WidgetConfigResponse> {
     const API_BASE_URL = (window as any).__KULA_CHAT_API_URL__ || 'http://localhost:5001/api';
     
@@ -134,11 +162,20 @@ class GreetoChatWidget {
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`Config fetch failed: ${response.status}`);
+    // Try to parse JSON body for useful backend error messages
+    let body: any = null;
+    try {
+      body = await response.json();
+    } catch (err) {
+      // ignore JSON parse errors
     }
 
-    return response.json();
+    if (!response.ok) {
+      const errMsg = body?.error || `Config fetch failed: ${response.status}`;
+      throw new Error(errMsg);
+    }
+
+    return body as WidgetConfigResponse;
   }
 
   private createContainer(): void {
@@ -159,6 +196,11 @@ class GreetoChatWidget {
     if (!this.container) return;
 
     const widgetConfig = config.widget_config;
+    if (!widgetConfig) {
+      console.warn('[Greeto Chat] No widget_config provided, falling back to defaults');
+      this.applyDefaultConfig();
+      return;
+    }
     
     // Set CSS variables
     this.container.style.setProperty('--color-theme-primary', widgetConfig.primaryColor);
@@ -171,6 +213,12 @@ class GreetoChatWidget {
       ? `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.2)` 
       : '#dbeafe';
     this.container.style.setProperty('--color-theme-primary-light', lightColor);
+    
+    // Calculate contrast text colors based on background luminance
+    const primaryTextColor = this.getContrastTextColor(widgetConfig.primaryColor);
+    const secondaryTextColor = this.getContrastTextColor(widgetConfig.secondaryColor);
+    this.container.style.setProperty('--color-text-on-primary', primaryTextColor);
+    this.container.style.setProperty('--color-text-on-secondary', secondaryTextColor);
     
     // Store config as data attributes
     this.container.setAttribute('data-position', widgetConfig.position);
@@ -186,6 +234,13 @@ class GreetoChatWidget {
     this.container.style.setProperty('--color-theme-secondary', '#1d4ed8');
     this.container.style.setProperty('--color-theme-primary-hover', '#1d4ed8');
     this.container.style.setProperty('--color-theme-primary-light', '#dbeafe');
+    
+    // Calculate contrast text colors for default theme
+    const primaryTextColor = this.getContrastTextColor('#2563EB');
+    const secondaryTextColor = this.getContrastTextColor('#1d4ed8');
+    this.container.style.setProperty('--color-text-on-primary', primaryTextColor);
+    this.container.style.setProperty('--color-text-on-secondary', secondaryTextColor);
+    
     this.container.setAttribute('data-position', 'bottom-right');
     this.container.setAttribute('data-welcome-message', 'Hi! How can I help you today?');
     
@@ -199,6 +254,21 @@ class GreetoChatWidget {
       g: parseInt(result[2], 16),
       b: parseInt(result[3], 16)
     } : null;
+  }
+
+  private getLuminance(hex: string): number {
+    const rgb = this.hexToRgb(hex);
+    if (!rgb) return 0.5; // Default to mid-range
+    
+    // Calculate relative luminance using WCAG formula
+    const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+    return luminance;
+  }
+
+  private getContrastTextColor(hex: string): string {
+    const luminance = this.getLuminance(hex);
+    // If luminance > 0.5, use dark text; otherwise use white text
+    return luminance > 0.5 ? '#1f2937' : '#ffffff';
   }
 
   private renderWidget(): void {
