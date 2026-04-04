@@ -162,7 +162,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
       setMessages(prevMessages => [
         ...prevMessages,
-        { role: 'assistant', content: data.response }
+        { role: 'assistant', content: data.response, needsHuman: data.needsHuman ?? false }
       ]);
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -201,7 +201,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
       setMessages(prevMessages => [
         ...prevMessages,
-        { role: 'assistant', content: data.response }
+        { role: 'assistant', content: data.response, needsHuman: data.needsHuman ?? false }
       ]);
     } catch (error: any) {
       console.error('Error sending suggestion:', error);
@@ -254,18 +254,18 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   return (
     <div className="h-full w-full max-w-[400px] bg-white rounded-2xl shadow-widget-lg flex flex-col overflow-hidden">
       {/* Header - Fixed at top with minimize icon */}
-      <div className="bg-theme-primary text-text-on-primary px-4 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="bg-theme-primary text-text-on-primary px-3 py-2 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
           {/* Avatar */}
           <img 
             src={GreetoIconWhite} 
             alt="Greeto" 
-            className="w-10 h-10 flex-shrink-0"
+            className="w-8 h-8 flex-shrink-0"
           />
 
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm">Chat Support</h3>
-            <div className="flex items-center gap-1.5 text-xs text-white/80">
+            <h3 className="font-semibold text-xs">Chat Support</h3>
+            <div className="flex items-center gap-1 text-[10px] text-white/80">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0"></div>
               <span>Online</span>
             </div>
@@ -276,32 +276,39 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         {onClose && (
           <button
             onClick={onClose}
-            className="bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-2 transition-all duration-200 flex-shrink-0 group"
+            className="bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 flex-shrink-0 group"
             aria-label="Minimize chat"
           >
             <img
               src={minimizeIcon}
               alt="Minimize"
-              className="w-5 h-5 block transition-transform duration-200 group-hover:scale-110"
+              className="w-4 h-4 block transition-transform duration-200 group-hover:scale-110"
             />
           </button>
         )}
       </div>
 
       {/* Messages - Flexible scrollable area (takes remaining space) */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-gradient-to-b from-gray-50 to-white min-h-0">
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 bg-gradient-to-b from-gray-50 to-white min-h-0">
         {messages.map((msg, idx) => (
-          <MessageBubble key={idx} role={msg.role} content={msg.content} />
+          <MessageBubble
+            key={idx}
+            role={msg.role}
+            content={msg.content}
+            needsHuman={msg.needsHuman}
+            leadSubmitted={leadSubmitted}
+            onLeaveDetails={() => setShowLeadForm(true)}
+          />
         ))}
 
         {/* Starter Suggestions - only shown with initial welcome message */}
         {suggestionsVisible && starterSuggestions.length > 0 && messages.length === 1 && !loading && (
-          <div className="flex flex-wrap gap-2 mt-1 animate-slide-in">
+          <div className="flex flex-wrap gap-1.5 mt-1 animate-slide-in">
             {starterSuggestions.map((suggestion, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-theme-primary hover:text-text-on-primary hover:border-theme-primary transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+                className="px-2.5 py-1 text-xs bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-theme-primary hover:text-text-on-primary hover:border-theme-primary transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
               >
                 {suggestion}
               </button>
@@ -312,7 +319,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         {/* Typing indicator */}
         {loading && (
           <div className="flex justify-start animate-slide-in">
-            <div className="bg-gray-200 rounded-2xl px-4 py-3 flex items-center gap-2">
+            <div className="bg-gray-200 rounded-2xl px-3 py-2 flex items-center gap-2">
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -327,7 +334,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
       {/* Lead Form - Inline panel (replaces input when open) */}
       {showLeadForm ? (
-        <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 max-h-[60%] overflow-hidden flex flex-col">
+        <div className="p-3 bg-white border-t border-gray-100 flex-shrink-0 max-h-[60%] overflow-hidden flex flex-col">
           <LeadForm
             visitorId={visitorId}
             conversationId={conversationId}
@@ -338,27 +345,18 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
           />
         </div>
       ) : (
-        <div className="p-4 bg-white border-t border-gray-100 flex-shrink-0 flex flex-col gap-2">
+        <div className="p-3 bg-white border-t border-gray-100 flex-shrink-0 flex flex-col gap-1.5">
           <ChatInput
             value={input}
             onChange={setInput}
             onSend={sendMessage}
             disabled={loading}
           />
-          {/* Lead form button */}
-          <button
-            onClick={() => setShowLeadForm(true)}
-            className="w-full px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading}
-            aria-label={leadSubmitted ? 'Edit your details' : 'Leave your details'}
-          >
-            {leadSubmitted ? 'Edit my details' : 'Leave my details'}
-          </button>
         </div>
       )}
 
       {/* Powered by Greeto - branding*/}
-      <div className="px-4 py-3 text-center border-t border-gray-200 bg-gradient-to-b from-white to-gray-50">
+      <div className="px-3 py-1.5 text-center border-t border-gray-200 bg-gradient-to-b from-white to-gray-50">
         <a
           href="https://greeto.ai"
           target="_blank"

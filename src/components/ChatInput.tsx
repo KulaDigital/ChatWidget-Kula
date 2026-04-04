@@ -12,10 +12,10 @@ interface ChatInputProps {
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled }) => (
-  <form onSubmit={onSend} className="flex gap-2">
+  <form onSubmit={onSend} className="flex gap-1.5">
     <input
       type="text"
-      className="flex-1 border border-gray-300 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary-light focus:border-theme-primary transition-all placeholder:text-gray-400"
+      className="flex-1 border border-gray-300 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary-light focus:border-theme-primary transition-all placeholder:text-gray-400"
       placeholder="Type your message..."
       value={value}
       onChange={e => onChange(e.target.value)}
@@ -24,10 +24,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled
     />
     <button 
       type="submit"
-      className="bg-theme-primary text-text-on-primary px-6 py-3 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center"
+      className="bg-theme-primary text-text-on-primary px-4 py-2 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center"
       disabled={disabled || !value.trim()}
     >
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
       </svg>
     </button>
