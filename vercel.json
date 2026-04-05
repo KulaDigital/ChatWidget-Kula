@@ -3,11 +3,45 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/widget.js",
+      "destination": "/widget.js"
+    },
+    {
+      "source": "/widget.css",
+      "destination": "/widget.css"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/widget.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        }
+      ]
+    },
+    {
+      "source": "/widget.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/css"
+        }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [
