@@ -7,7 +7,67 @@ import svgr from 'vite-plugin-svgr'
 
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development'
+  const buildTarget = process.env.VITE_BUILD_TARGET || 'app'
   
+  // Widget library build configuration
+  if (buildTarget === 'widget') {
+    return {
+      plugins: [react(), svgr()],
+      
+      build: {
+        lib: {
+          entry: resolve(__dirname, 'src/embed.ts'),
+          name: 'GreetoChatWidget',
+          fileName: 'widget',
+          formats: ['iife']
+        },
+        minify: isDev ? false : 'esbuild',
+        sourcemap: isDev ? true : false,
+        outDir: 'dist',
+        emptyOutDir: false, // ✅ Don't empty dist since app build already ran
+        
+        rollupOptions: {
+          output: {
+            entryFileNames: 'widget.js',
+            assetFileNames: (assetInfo) => {
+              if (assetInfo.name?.endsWith('.css')) {
+                return 'widget.css'
+              }
+              return '[name][extname]'
+            },
+            globals: {
+              react: 'React',
+              'react-dom': 'ReactDOM'
+            }
+          },
+          external: []
+        },
+        
+        target: ['es2020', 'chrome87', 'safari14', 'firefox78', 'edge88'],
+        reportCompressedSize: true,
+        cssMinify: true,
+      },
+      
+      resolve: {
+        alias: {
+          '@': resolve(__dirname, './src'),
+        },
+      },
+      
+      define: {
+        'process.env.NODE_ENV': JSON.stringify(mode),
+        '__DEV__': JSON.stringify(isDev),
+      },
+      
+      esbuild: {
+        logOverride: { 'this-is-undefined-in-esm': 'silent' },
+        legalComments: 'none',
+        treeShaking: true,
+      },
+    }
+  }
+  
+  // Default React app build configuration
   return {
     plugins: [
       react(), 
@@ -31,27 +91,6 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       
       rollupOptions: {
-        input: {
-          embed: resolve(__dirname, 'src/embed.ts'),
-        },
-        output: {
-          format: 'iife',
-          name: 'GreetoChatWidget',
-          entryFileNames: 'widget.js',
-          chunkFileNames: 'chunks/[name]-[hash].js',
-          assetFileNames: (assetInfo) => {
-            // ✅ Ensure CSS has predictable name for auto-loading
-            if (assetInfo.name?.endsWith('.css')) {
-              return 'widget.css';
-            }
-            return 'assets/[name]-[hash][extname]';
-          },
-          inlineDynamicImports: true,
-          globals: {
-            react: 'React',
-            'react-dom': 'ReactDOM'
-          }
-        },
         external: [],
       },
       

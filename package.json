@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode development",
-    "build": "tsc && vite build --mode production",
-    "build:widget": "vite build --mode production",
-    "build:dev": "vite build --mode development",
+    "build": "tsc && node build.js",
+    "build:app": "vite build --mode production",
+    "build:widget": "cross-env VITE_BUILD_TARGET=widget vite build --mode production",
     "preview": "vite preview",
     "serve:demo": "vite preview --open /demo.html",
     "typecheck": "tsc --noEmit",
