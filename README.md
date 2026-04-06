@@ -1,5 +1,7 @@
 # 🚀 Greeto Chat Widget
 
+Deployment test
+
 A **standalone, embeddable React chat widget** built with modern technologies. Deploy once, embed anywhere with a simple script tag. Perfect for integrating AI-powered chatbot capabilities into any website.
 
 ![React](https://img.shields.io/badge/React-19.2-blue.svg)
