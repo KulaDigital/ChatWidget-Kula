@@ -30,7 +30,8 @@ async function build() {
 
     console.log('\n📦 Building embeddable widget...');
     await run('vite', ['build', '--mode', 'production'], {
-      VITE_BUILD_TARGET: 'widget'
+      VITE_BUILD_TARGET: 'widget',
+      VITE_API_BASE_URL: process.env.VITE_API_BASE_URL
     });
 
     console.log('\n✅ All builds completed successfully!');
