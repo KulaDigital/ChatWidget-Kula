@@ -153,7 +153,7 @@ class GreetoChatWidget {
 
 
   private async fetchWidgetConfig(): Promise<WidgetConfigResponse> {
-    const API_BASE_URL = (window as any).__KULA_CHAT_API_URL__ || 'http://localhost:5001/api';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
     
     const response = await fetch(`${API_BASE_URL}/widget/config`, {
       headers: {
