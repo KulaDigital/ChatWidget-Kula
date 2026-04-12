@@ -44,20 +44,53 @@
   outline: none;
 }
 
-/* ✅ Isolate button styles from parent website */
-#greeto-chat-widget-container button {
+/* ✅ Isolate button styles from parent website - only for icon buttons (minimize, etc) */
+#greeto-chat-widget-container button.icon-button {
   background-color: transparent !important;
   background-image: none !important;
   background-clip: padding-box !important;
+  border: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
-#greeto-chat-widget-container button:hover {
+#greeto-chat-widget-container button.icon-button:hover {
   background-color: transparent !important;
   background-image: none !important;
+  border: none !important;
+  border-color: transparent !important;
 }
 
-#greeto-chat-widget-container button:active,
-#greeto-chat-widget-container button:focus {
+#greeto-chat-widget-container button.icon-button:active,
+#greeto-chat-widget-container button.icon-button:focus {
   background-color: transparent !important;
   background-image: none !important;
+  border: none !important;
+  border-color: transparent !important;
+}
+
+/* ✅ Ensure suggestion buttons keep their borders */
+#greeto-chat-widget-container button[class*="border-gray"] {
+  border: 1px solid #d1d5db !important;
+}
+
+/* ✅ Ensure SVG/Lucide icons are visible with proper styling */
+#greeto-chat-widget-container button svg {
+  color: currentColor !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+  flex-shrink: 0;
+  width: auto !important;
+  height: auto !important;
+}
+
+#greeto-chat-widget-container button[type="submit"] {
+  background-color: var(--color-theme-primary, #2563EB) !important;
+  color: var(--color-text-on-primary, #ffffff) !important;
+  border: none !important;
+}
+
+#greeto-chat-widget-container button[type="submit"]:hover {
+  background-color: var(--color-theme-primary-hover, #1d4ed8) !important;
+  border: none !important;
 }

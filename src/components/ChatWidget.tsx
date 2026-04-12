@@ -80,6 +80,7 @@ const ChatWidget = () => {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
+          icon-button
           fixed ${getPositionClasses(false)} 
           w-14 h-14 
           bg-transparent

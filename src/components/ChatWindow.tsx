@@ -276,7 +276,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
         {onClose && (
           <button
             onClick={onClose}
-            className="bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 flex-shrink-0 group"
+            className="icon-button bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 flex-shrink-0 group"
             aria-label="Minimize chat"
           >
             <img
