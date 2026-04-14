@@ -12,25 +12,32 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled }) => (
-  <form onSubmit={onSend} className="flex gap-1.5">
-    <input
-      type="text"
-      className="flex-1 border border-gray-300 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary-light focus:border-theme-primary transition-all placeholder:text-gray-400"
-      placeholder="Type your message..."
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      disabled={disabled}
-      autoComplete="off"
-    />
-    <button 
-      type="submit"
-      className="bg-theme-primary text-text-on-primary px-4 py-2 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center"
-      disabled={disabled || !value.trim()}
-    >
-      <Send size={16} />
-    </button>
-  </form>
-);
+const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled }) => {
+  // ✅ Check if in preview mode
+  const container = typeof document !== 'undefined' ? document.getElementById('greeto-chat-widget-container') : null;
+  const isPreviewMode = container?.getAttribute('data-preview-mode') === 'true';
+  
+  return (
+    <form onSubmit={onSend} className="flex gap-1.5">
+      <input
+        type="text"
+        className="flex-1 border border-gray-300 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-theme-primary-light focus:border-theme-primary transition-all placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        placeholder={isPreviewMode ? "Preview mode - messages disabled" : "Type your message..."}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        disabled={disabled || isPreviewMode}
+        autoComplete="off"
+      />
+      <button 
+        type="submit"
+        className="bg-theme-primary text-text-on-primary px-4 py-2 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-theme-primary-hover transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center"
+        disabled={disabled || !value.trim() || isPreviewMode}
+        title={isPreviewMode ? "Message sending disabled in preview mode" : ""}
+      >
+        <Send size={16} />
+      </button>
+    </form>
+  );
+};
 
 export default ChatInput;

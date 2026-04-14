@@ -38,6 +38,25 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
   const isInitialLoad = useRef(true);
 
+  // ✅ Helper: Check preview mode and show notification
+  const handlePreviewModeMessage = (): boolean => {
+    const container = document.getElementById('greeto-chat-widget-container');
+    const isPreviewMode = container?.getAttribute('data-preview-mode') === 'true';
+    
+    if (isPreviewMode) {
+      console.log('[Greeto Chat] Preview mode: message sending disabled');
+      setMessages(prevMessages => [
+        ...prevMessages,
+        { 
+          role: 'assistant', 
+          content: 'This is preview mode. Message sending is disabled. Try client dashboard - Test chatbot to test your chatbot replies.' 
+        }
+      ]);
+      return true;
+    }
+    return false;
+  };
+
   const scrollToBottom = (instant?: boolean) => {
     messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
   };
@@ -137,6 +156,12 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     e.preventDefault();
     if (!input.trim()) return;
 
+    // ✅ Check for preview mode - prevent sending messages
+    if (handlePreviewModeMessage()) {
+      setInput('');
+      return;
+    }
+
     const userMessage = input.trim();
     setMessages(prevMessages => [...prevMessages, { role: 'user', content: userMessage }]);
     setLoading(true);
@@ -178,6 +203,11 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
 
   // ✅ Handle starter suggestion click
   const handleSuggestionClick = async (suggestion: string) => {
+    // ✅ Check for preview mode - prevent sending suggestions
+    if (handlePreviewModeMessage()) {
+      return;
+    }
+
     setSuggestionsVisible(false);
     setMessages(prevMessages => [...prevMessages, { role: 'user', content: suggestion }]);
     setLoading(true);

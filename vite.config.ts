@@ -4,6 +4,58 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import svgr from 'vite-plugin-svgr'
+import fs from 'fs'
+import type { Plugin } from 'vite'
+
+// ✅ Plugin to serve widget files from root on dev server
+const serveWidgetFilesPlugin = (): Plugin => ({
+  name: 'serve-widget-files',
+  apply: 'serve',
+  configureServer(server) {
+    // Add middleware directly (not wrapped in return)
+    server.middlewares.use((req, res, next) => {
+      const url = req.url || '';
+      
+      // Check if requesting widget.js or widget.css
+      if (url === '/widget.js' || url === '/widget.css' || url.startsWith('/widget.js?') || url.startsWith('/widget.css?')) {
+        const pathname = url.split('?')[0];
+        const filePath = resolve(__dirname, `dist${pathname}`);
+        
+        // Check if file exists in dist
+        if (fs.existsSync(filePath)) {
+          try {
+            const content = fs.readFileSync(filePath);
+            const isJs = pathname.endsWith('.js');
+            const contentType = isJs ? 'application/javascript;charset=utf-8' : 'text/css;charset=utf-8';
+            
+            res.writeHead(200, {
+              'Content-Type': contentType,
+              'Content-Length': Buffer.byteLength(content),
+              'Access-Control-Allow-Origin': '*',
+              'Cache-Control': 'no-cache'
+            });
+            res.end(content);
+            return; // Stop processing, don't call next()
+          } catch (err) {
+            console.error(`[serve-widget-files] Error reading ${pathname}:`, err);
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Internal Server Error');
+            return;
+          }
+        } else {
+          // File not found, but still prevent SPA fallback
+          console.warn(`[serve-widget-files] File not found: ${filePath}`);
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not Found');
+          return;
+        }
+      }
+      
+      // Let other middleware/handlers process this request
+      next();
+    });
+  }
+});
 
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development'
@@ -71,7 +123,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(), 
-      svgr()
+      svgr(),
+      serveWidgetFilesPlugin()
     ],
     
     // Development server

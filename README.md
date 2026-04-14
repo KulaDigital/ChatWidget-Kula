@@ -45,6 +45,9 @@ A **standalone, embeddable React chat widget** built with modern technologies. D
 - ✅ **Production Ready** - IIFE bundle format for universal compatibility
 - ✅ **API Integration** - Axios client with request/response interceptors
 - ✅ **Error Handling** - User-friendly error messages and recovery
+- ✅ **CSS Isolation** - Prevents parent website styles from affecting widget (buttons, borders, etc.)
+- ✅ **Preview Mode** - Test widget on dashboards without sending real messages
+- ✅ **Lucide Icons** - Professional icon set for UI elements (send button, etc.)
 
 ---
 
@@ -88,10 +91,26 @@ Start the development server with hot module replacement:
 npm run dev
 ```
 
-The app will open at `http://localhost:3000` with:
+The app will open at `http://localhost:3000` (or next available port if occupied) with:
 - Live reload on file changes
 - TypeScript error checking
 - ESLint code quality checks
+- **Widget files served from root** (e.g., `http://localhost:PORT/widget.js` and `http://localhost:PORT/widget.css`)
+
+#### Development Widget Testing
+
+For local development and testing, the widget files are automatically served from the root URL:
+
+```html
+<!-- Local development -->
+<script 
+    src="http://localhost:3001/widget.js"
+    data-api-key="test-key-local">
+</script>
+```
+
+The dev server middleware automatically intercepts requests to `/widget.js` and `/widget.css` and serves them from the `dist/` build folder, making local testing more convenient without the `/dist/` prefix.
+
 
 ### Available Scripts
 
@@ -249,6 +268,44 @@ This ensures text remains readable regardless of the primary or secondary color 
 - `bottom-left` - Lower left corner
 - `top-right` - Upper right corner
 - `top-left` - Upper left corner
+
+### Preview Mode
+
+**Preview Mode** allows you to test the widget on your dashboard without sending real messages. This is useful for previewing the widget UI/UX before deploying to production.
+
+#### Enable Preview Mode
+
+Add `data-preview-mode="true"` to the widget script tag:
+
+```html
+<!-- Preview Mode - Messages will not be sent -->
+<script 
+    src="https://your-cdn.com/widget.js"
+    data-api-key="your-api-key-123"
+    data-preview-mode="true">
+</script>
+```
+
+#### Preview Mode Behavior
+
+When preview mode is enabled:
+- Input field shows placeholder: *"Preview mode - messages disabled"*
+- Send button is disabled with reduced opacity
+- Clicking send or suggestions shows: *"This is preview mode. Message sending is disabled. Enable the widget on your website to start chatting."*
+- All other widget features (UI, styling, animations) work normally
+- No API calls are made for message sending
+
+#### Production Deployment
+
+Simply remove the `data-preview-mode` attribute (or set to `false`) for production:
+
+```html
+<!-- Production - Normal operation -->
+<script 
+    src="https://your-cdn.com/widget.js"
+    data-api-key="your-api-key-123">
+</script>
+```
 
 ---
 
