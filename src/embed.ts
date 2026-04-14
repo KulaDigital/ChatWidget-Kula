@@ -28,9 +28,11 @@ class GreetoChatWidget {
   private apiKey: string = '';
   private isInitialized: boolean = false;
   private cssLoaded: boolean = false;
+  private isPreviewMode: boolean = false;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, isPreviewMode: boolean = false) {
     this.apiKey = apiKey;
+    this.isPreviewMode = isPreviewMode;
     setApiKey(apiKey);
   }
 
@@ -190,6 +192,12 @@ class GreetoChatWidget {
     } else {
       console.log('[Greeto Chat] Using existing container');
     }
+    
+    // ✅ Set preview mode attribute if enabled
+    if (this.isPreviewMode) {
+      this.container.setAttribute('data-preview-mode', 'true');
+      console.log('[Greeto Chat] Preview mode enabled');
+    }
   }
 
   private applyConfig(config: WidgetConfigResponse): void {
@@ -308,11 +316,12 @@ if (typeof window !== 'undefined') {
   const scriptTag = document.currentScript as HTMLScriptElement;
   if (scriptTag) {
     const apiKey = scriptTag.getAttribute('data-api-key');
+    const isPreviewMode = scriptTag.getAttribute('data-preview-mode') === 'true';
 
     if (apiKey) {
       console.log('[Greeto Chat] Found API key in script tag');
       
-      (window as any).greetoChat = new GreetoChatWidget(apiKey);
+      (window as any).greetoChat = new GreetoChatWidget(apiKey, isPreviewMode);
 
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
