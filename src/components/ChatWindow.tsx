@@ -28,7 +28,7 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
-  const [visitorId] = useState<string>(getVisitorId());
+  const [visitorId, setVisitorId] = useState<string>(getVisitorId());
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadSubmitted, setLeadSubmitted] = useState(false);
   const [leadData, setLeadData] = useState<LeadFormData | null>(null);
@@ -248,6 +248,12 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   // ✅ Handle lead form success
   const handleLeadSubmitSuccess = (response: LeadSubmitResponse) => {
     console.log('[Greeto Widget] Lead submitted successfully:', response);
+
+    // ✅ Use enhanced visitor_id from backend response
+    const enhancedVisitorId = response.lead.visitor_id;
+    setVisitorId(enhancedVisitorId);
+    localStorage.setItem('greeto_readable_visitor_id', enhancedVisitorId);
+    console.log('[Greeto Widget] Enhanced visitor ID updated to:', enhancedVisitorId);
 
     // Store conversation ID if provided in response
     if (response.lead.conversation_id) {

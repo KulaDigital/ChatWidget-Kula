@@ -91,7 +91,7 @@ export const getCurrentApiKey = () => currentApiKey;
 
 /**
  * ✅ Submit lead form data
- * @param leadData - Lead form data with visitorId, name, email, phone, company
+ * @param leadData - Lead form data with visitorId, name, email, phone, company, conversationId (required)
  * @returns Promise with lead submission response
  */
 export const submitLead = async (leadData: {
@@ -100,13 +100,21 @@ export const submitLead = async (leadData: {
   email: string;
   phone?: string;
   company?: string;
-  conversationId?: number;
+  conversationId: number;
 }) => {
   try {
     console.log('[Greeto Widget] Submitting lead:', leadData);
     const { data } = await apiClient.post('/leads', leadData);
-    console.log('[Greeto Widget] Lead submitted successfully:', data);
-    return data;
+    console.log('[Greeto Widget] Lead submitted successfully, raw response:', data);
+    
+    // Ensure response has success field
+    const response = {
+      success: data?.success !== false,
+      ...data,
+    };
+    
+    console.log('[Greeto Widget] Lead response with success flag:', response);
+    return response;
   } catch (error) {
     console.error('[Greeto Widget] Lead submission failed:', error);
     throw error;
@@ -150,6 +158,13 @@ export const getWidgetConfig = async () => {
     console.log('[Greeto Widget] Fetching widget config');
     const { data } = await apiClient.get('/widget/config');
     console.log('[Greeto Widget] Widget config fetched:', data);
+    
+    // ✅ Store client_name in sessionStorage immediately for getVisitorId() to access
+    if (data?.client_name) {
+      sessionStorage.setItem('greeto_client_name', data.client_name);
+      console.log('[Greeto Chat] Client name cached in sessionStorage (from api.ts):', data.client_name);
+    }
+    
     return data;
   } catch (error) {
     console.error('[Greeto Widget] Failed to fetch widget config:', error);

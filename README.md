@@ -988,6 +988,147 @@ This ensures text remains readable regardless of the chosen theme colors.
 
 ---
 
+## 🧩 Undocumented / Recently Discovered Behaviours
+
+This section captures important implementation details that are not covered elsewhere in the README. Future developers should read this before making changes to the widget core.
+
+---
+
+### `needsHuman` Flag — Inline Lead-Capture CTA
+
+**Where:** `src/types/chat.ts`, `src/components/MessageBubble.tsx`, `src/components/ChatWindow.tsx`
+
+When the `/chat` endpoint returns `needsHuman: true` in its response, the assistant message bubble automatically renders an inline call-to-action below the message text:
+
+- **First visit:** shows a *"Leave my details"* button.
+- **Returning visitor (lead already submitted):** shows *"Edit my details"* instead.
+
+Clicking the button opens the `LeadForm` panel in the appropriate create or edit mode.
+
+**Chat API response shape (full):**
+```json
+{
+  "response": "I'm sorry, I can't answer that directly...",
+  "conversationId": 42,
+  "clientName": "Acme Corp",
+  "needsHuman": true,
+  "sources": [{ "url": "https://...", "similarity": 0.87 }],
+  "contextsUsed": 3
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `needsHuman` | `boolean` | Triggers inline CTA in message bubble |
+| `sources` | `Source[]` | RAG source URLs with similarity scores (reserved, not yet rendered) |
+| `contextsUsed` | `number` | Number of RAG chunks used (reserved, not yet rendered) |
+| `clientName` | `string` | Client name echo from backend (reserved) |
+
+> **Note:** `sources` and `contextsUsed` are fully typed (`src/types/chat.ts`) but are not currently displayed in the UI. They are available for future use.
+
+---
+
+### Lead Form — `conversationId` Required for New Submissions
+
+**Where:** `src/components/LeadForm.tsx` (line ~87)
+
+When submitting a **new** lead (not edit mode), the form validates that a `conversationId` is present. If the user tries to open the form before sending any message, the submission will fail with:
+
+> *"Connection issue. Please refresh the page and try again."*
+
+**Design intent:** A conversation must exist on the backend before a lead can be linked to it. Ensure users send at least one chat message before surfacing the lead form, or pre-create a conversation server-side during widget init.
+
+---
+
+### Lead Form — 409 Conflict Handling
+
+**Where:** `src/components/LeadForm.tsx` (catch block in `handleSubmit`)
+
+If the backend returns HTTP `409 Conflict` (visitor has already submitted a lead), the form displays:
+
+> *"You've already shared your details with us. We'll be in touch soon!"*
+
+This is a silent recovery — no retry is attempted and the form remains open so the user can close it manually. The `updateLead` path (edit mode) does not trigger 409 errors.
+
+---
+
+### Storage Keys — Full Reference
+
+The widget uses the following browser storage keys:
+
+| Key | Storage | Set By | Description |
+|-----|---------|--------|-------------|
+| `greeto_visitor_id` | `localStorage` | `src/utils/uuid.ts` — `getVisitorId()` | UUID v4 for anonymous visitor tracking. Created on first visit, persists indefinitely. |
+| `greeto_readable_visitor_id` | `localStorage` | `src/components/ChatWindow.tsx` — `handleLeadSubmitSuccess()` | Backend-enhanced visitor ID returned after lead submission. Overwrites the raw UUID with a human-readable format if the backend provides one. |
+| `greeto_conversation_id` | `localStorage` | `src/components/ChatWindow.tsx` | Active conversation ID. Persists across sessions to restore chat history. |
+| `greeto_client_name` | `sessionStorage` | `src/config/api.ts` — `getWidgetConfig()` / `src/embed.ts` — `fetchWidgetConfig()` | Client/organisation name from the `/widget/config` response. Cached for use by `getVisitorId()` to build readable IDs. Cleared when the browser tab closes. |
+
+> **Important:** `greeto_readable_visitor_id` and `greeto_visitor_id` can diverge after lead submission. Code that reads the visitor ID should always use `getVisitorId()` from `src/utils/uuid.ts`, which returns `greeto_visitor_id`. The `greeto_readable_visitor_id` is updated separately in `ChatWindow` state and is the authoritative ID for API calls within that component session.
+
+---
+
+### `data-organization-name` Container Attribute
+
+**Where:** `src/embed.ts` — `applyConfig()` and `applyDefaultConfig()`
+
+After fetching widget configuration, the embed script sets a `data-organization-name` attribute on the `#greeto-chat-widget-container` element:
+
+```html
+<div id="greeto-chat-widget-container"
+     data-position="bottom-right"
+     data-welcome-message="Hi! How can I help?"
+     data-organization-name="Acme Corp">
+```
+
+The value is resolved from the config response in priority order:
+1. `client_name`
+2. `clientName`
+3. `company_name`
+4. `organization_name`
+5. `organizationName`
+6. Falls back to `"Organization"` if none are present.
+
+This attribute is available to components via `document.getElementById('greeto-chat-widget-container')?.getAttribute('data-organization-name')` for future use (e.g. personalised greetings).
+
+---
+
+### Preview Mode — Accurate Message Text
+
+The README previously listed an outdated preview mode notification. The **actual** message shown to users (as of current code in `src/components/ChatWindow.tsx`) is:
+
+> *"This is preview mode. Message sending is disabled. Try client dashboard - Test chatbot to test your chatbot replies."*
+
+This applies to both direct message sends and starter suggestion clicks.
+
+---
+
+### "Powered by Greeto" Branding Footer
+
+**Where:** `src/components/ChatWindow.tsx` (bottom of render)
+
+Every deployed widget instance renders a small branding footer:
+
+```
+Powered by Greeto  (links to https://greeto.ai)
+```
+
+This is **always rendered** and is not currently configurable via data attributes or API config. If white-labelling is required in the future, a `data-hide-branding` attribute or a backend config flag would need to be introduced.
+
+---
+
+### Auto-CSS Loading (Production Only)
+
+**Where:** `src/embed.ts` — `loadStylesheet()`
+
+In production (`embed.ts`), the widget automatically injects a `<link>` tag pointing to `widget.css` using the same base URL as `widget.js`. Manual `<link>` inclusion is **not required** when using the script-tag embed method.
+
+Fallback behaviour:
+- If CSS is already loaded (detected via `link[href*="widget.css"]`), the injection is skipped.
+- If the `<link>` tag fails to load within **3 seconds**, initialisation continues with inline styles.
+- In development (`main.tsx`), CSS is injected by Vite and this auto-load step does not run.
+
+---
+
 ## 🌿 Branching Strategy
 
 - The `main` branch is designated for production-ready code.

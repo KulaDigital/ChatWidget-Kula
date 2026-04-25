@@ -19,32 +19,113 @@ export const generateUUID = (): string => {
 };
 
 /**
- * Get or create a persistent visitor ID using localStorage
- * Visitor ID persists across browser sessions
+ * Generate a readable, human-friendly visitor ID
+ * Format: {organization}_{firstname}_{lastname}_{random4digits}
+ * Example: acme_john_doe_5829
  * 
- * @returns {string} UUID v4 format visitor ID
+ * @param organizationName - Organization/company name (will be slugified: lowercase, spaces to underscores)
+ * @param firstName - First name of visitor (optional, will be added later after lead form)
+ * @param lastName - Last name of visitor (optional, will be added later after lead form)
+ * @returns {string} Readable visitor ID in slug format
+ */
+export const generateReadableVisitorId = (organizationName: string, firstName?: string, lastName?: string): string => {
+  // Helper function to convert to slug format (lowercase, remove special chars, replace spaces with underscores)
+  const toSlug = (str: string): string => {
+    return str
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .substring(0, 20); // Limit each part to 20 chars
+  };
+
+  // Generate random 4-digit number
+  const randomDigits = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  
+  // Build the ID
+  const parts: string[] = [toSlug(organizationName)];
+  
+  if (firstName) {
+    parts.push(toSlug(firstName));
+  }
+  
+  if (lastName) {
+    parts.push(toSlug(lastName));
+  }
+  
+  parts.push(randomDigits);
+  
+  return parts.join('_');
+};
+
+/**
+ * Get or create a persistent visitor ID using localStorage
+ * Visitor ID now uses readable format with organization name
+ * Persists across browser sessions
+ * 
+ * @returns {string} Readable visitor ID (e.g., acme_5829 on first load, acme_john_doe_5829 after lead form)
  */
 export const getVisitorId = (): string => {
-  const STORAGE_KEY = 'greeto_visitor_id';
+  const READABLE_STORAGE_KEY = 'greeto_readable_visitor_id';
+  const ORG_STORAGE_KEY = 'greeto_stored_organization';
   
-  // Try to retrieve existing visitor ID from localStorage
-  let visitorId = localStorage.getItem(STORAGE_KEY);
-  
-  // If not found, generate a new UUID and store it
-  if (!visitorId) {
-    visitorId = generateUUID();
+  try {
+    // ✅ Try to get organization name from multiple sources (in priority order)
+    // 1. sessionStorage (set by fetchWidgetConfig ASAP)
+    // 2. localStorage (persisted from previous session)
+    // 3. container attribute (set by embed.ts after config loads)
+    // 4. Fallback to 'Organization'
+    
+    let currentOrgName = 
+      sessionStorage.getItem('greeto_client_name') ||
+      localStorage.getItem(ORG_STORAGE_KEY) ||
+      document.getElementById('greeto-chat-widget-container')?.getAttribute('data-organization-name') ||
+      'Organization';
+    
+    const storedOrgName = localStorage.getItem(ORG_STORAGE_KEY);
+    
+    console.log('[Greeto Chat] Organization detection:', {
+      fromSessionStorage: sessionStorage.getItem('greeto_client_name'),
+      fromLocalStorage: storedOrgName,
+      fromContainerAttr: document.getElementById('greeto-chat-widget-container')?.getAttribute('data-organization-name'),
+      resolved: currentOrgName
+    });
+    
+    // Try to retrieve existing readable visitor ID from localStorage
+    let visitorId = localStorage.getItem(READABLE_STORAGE_KEY);
+    
+    // If readable ID exists AND organization hasn't changed, return it
+    if (visitorId && storedOrgName === currentOrgName) {
+      console.log('[Greeto Chat] Existing readable visitor ID loaded:', visitorId, '(org match:', storedOrgName, ')');
+      return visitorId;
+    }
+    
+    // If organization changed or no ID exists, generate a new one
+    if (storedOrgName !== currentOrgName && storedOrgName) {
+      console.log('[Greeto Chat] Organization changed from', storedOrgName, 'to', currentOrgName, '- regenerating visitor ID');
+    }
+    
+    console.log('[Greeto Chat] Generating new visitor ID from organization:', currentOrgName);
+    
+    visitorId = generateReadableVisitorId(currentOrgName);
+    console.log('[Greeto Chat] Generated new visitor ID:', visitorId, 'from organization:', currentOrgName);
+    
     try {
-      localStorage.setItem(STORAGE_KEY, visitorId);
-      console.log('[Greeto Chat] New visitor ID created:', visitorId);
+      localStorage.setItem(READABLE_STORAGE_KEY, visitorId);
+      localStorage.setItem(ORG_STORAGE_KEY, currentOrgName);
+      console.log('[Greeto Chat] New readable visitor ID stored:', visitorId);
     } catch (error) {
       // Fallback if localStorage is not available (private browsing, etc.)
       console.warn('[Greeto Chat] localStorage not available, using session-only ID:', visitorId);
     }
-  } else {
-    console.log('[Greeto Chat] Existing visitor ID loaded:', visitorId);
+    
+    return visitorId;
+  } catch (error) {
+    // Fallback to UUID if something goes wrong
+    const fallbackId = generateUUID();
+    console.warn('[Greeto Chat] Failed to generate readable ID, falling back to UUID:', error);
+    return fallbackId;
   }
-  
-  return visitorId;
 };
 
 /**
@@ -52,9 +133,13 @@ export const getVisitorId = (): string => {
  */
 export const clearVisitorId = (): void => {
   try {
-    localStorage.removeItem('greeto_visitor_id');
-    console.log('[Greeto Chat] Visitor ID cleared');
+    localStorage.removeItem('greeto_readable_visitor_id');
+    localStorage.removeItem('greeto_stored_organization');
+    sessionStorage.removeItem('greeto_client_name');
+    console.log('[Greeto Chat] Visitor IDs cleared - next load will generate fresh ID');
   } catch (error) {
     console.warn('[Greeto Chat] Failed to clear visitor ID:', error);
   }
 };
+
+
