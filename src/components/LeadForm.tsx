@@ -148,8 +148,8 @@ const LeadForm: React.FC<LeadFormProps> = ({
         const leadData = apiResponse.lead || apiResponse.data?.lead || apiResponse;
         response = {
           success: apiResponse.success || !!apiResponse.lead || !!apiResponse.data?.lead,
-          leadId: leadData?.id || apiResponse.id,
-          isNew: true,
+          leadId: leadData?.id || apiResponse.leadId || apiResponse.id,
+          isNew: apiResponse.isNew ?? true,
           // Always use submitted form data to ensure we have correct name/email
           lead: {
             ...(typeof leadData === 'object' ? leadData : {}),
@@ -173,17 +173,10 @@ const LeadForm: React.FC<LeadFormProps> = ({
         setApiError(errorMsg);
       }
     } catch (error: any) {
-      // ✅ Handle 409 Conflict error (duplicate lead already exists)
-      if (error.response?.status === 409) {
-        const errorMessage = "You've already shared your details with us. We'll be in touch soon!";
-        setApiError(errorMessage);
-        console.warn('[Greeto Widget] Lead already exists (409 Conflict):', error);
-      } else {
-        const errorMessage =
-          error.userMessage || error.response?.data?.error || 'Failed to submit lead. Please try again.';
-        setApiError(errorMessage);
-        console.error('[Greeto Widget] Lead submission error:', error);
-      }
+      const errorMessage =
+        error.userMessage || error.response?.data?.error || 'Failed to submit lead. Please try again.';
+      setApiError(errorMessage);
+      console.error('[Greeto Widget] Lead submission error:', error);
     } finally {
       setLoading(false);
     }

@@ -135,7 +135,9 @@ export const clearVisitorId = (): void => {
   try {
     localStorage.removeItem('greeto_readable_visitor_id');
     localStorage.removeItem('greeto_stored_organization');
-    sessionStorage.removeItem('greeto_client_name');
+    // Note: greeto_client_name (sessionStorage) is intentionally NOT cleared —
+    // it holds the organisation name from widget config and is needed immediately
+    // when getVisitorId() generates a new ID after reset.
     console.log('[Greeto Chat] Visitor IDs cleared - next load will generate fresh ID');
   } catch (error) {
     console.warn('[Greeto Chat] Failed to clear visitor ID:', error);

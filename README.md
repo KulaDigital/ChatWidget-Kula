@@ -37,6 +37,7 @@ A **standalone, embeddable React chat widget** built with modern technologies. D
 - ✅ **Multi-Position Support** - Place widget at any corner (bottom-right, bottom-left, top-right, top-left)
 - ✅ **Conversation Persistence** - Saves chat history using localStorage
 - ✅ **Visitor ID Tracking** - UUID v4 based visitor identification with persistent storage
+- ✅ **New Chat Button** - Reset conversation and start fresh with a single click + confirmation prompt
 - ✅ **Lead Capture Form** - User-invoked form to collect visitor details (name, email, phone, company)
 - ✅ **Lead Management** - Create, read, and update lead information with API integration
 - ✅ **Smart Form UI** - Toggle between chat input and lead form, auto-detect returning visitors
@@ -685,6 +686,123 @@ CMD ["npm", "run", "preview"]
 ---
 
 ## 📝 Recent Updates
+
+### v1.4.0 - New Chat Button & Lead Deduplication by Email
+- ✨ **New Chat Button** - Reset conversation, visitor ID, and lead data with a single click
+- 🔄 **Smart Confirmation UI** - Inline confirmation prompt prevents accidental resets (auto-cancels after 5 seconds)
+- 🔌 **Lead Deduplication** - Leads now deduplicated by email instead of visitor ID, supporting multiple session resets
+- 📊 **Enhanced Lead Response** - `POST /leads` now returns `leadId` and `isNew` flags for better tracking
+- 🗄️ **Database Constraint Update** - Unique constraint changed from `(client_id, visitor_id)` to `(client_id, lower(email))`
+- 🎯 **Graceful Upsert Logic** - Duplicate email submissions update existing lead instead of failing
+- 🧹 **Visitor ID Generation Fix** - Frontend now generates enhanced visitor IDs to preserve correct company name after lead submission
+
+#### New Chat Feature Details
+
+**User-Facing Button:**
+- Located in chat window header, next to minimize button
+- Displays as a `+` icon with tooltip "Start new chat"
+- Clicking shows inline confirmation: `"Start new chat? [Yes] [No]"`
+- Auto-cancels confirmation after 5 seconds
+- Disabled in preview mode
+
+**What Gets Reset:**
+- ✅ All conversation messages (reset to welcome message)
+- ✅ Conversation ID (cleared from localStorage and state)
+- ✅ Visitor ID (new one generated with correct company name)
+- ✅ Starter suggestions (reappear)
+- ✅ Lead data and submission status (cleared)
+- ✅ Lead form (closed)
+
+**Backend Behavior:**
+- No backend API call required for reset
+- New `visitorId` + existing client allows fresh `POST /chat` with new conversation
+- Old conversation row persists in DB as historical record (orphaned but intact)
+
+#### Lead Deduplication Changes
+
+**Database Schema Update:**
+```sql
+-- Old constraint (removed)
+CONSTRAINT conversations_client_visitor_unique UNIQUE (client_id, visitor_id)
+
+-- New constraint (added)
+CONSTRAINT leads_client_email_unique UNIQUE (client_id, lower(email))
+```
+
+**API Response Changes - `POST /api/leads`**
+
+**Before:**
+```json
+{
+  "success": true,
+  "lead": { ... }
+}
+```
+
+**After (Breaking Change for API Consumers):**
+```json
+{
+  "success": true,
+  "leadId": 12345,
+  "isNew": false,
+  "lead": {
+    "id": 12345,
+    "visitor_id": "acme_john_doe_5829",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1-234-567-8900",
+    "company": "Acme Corp",
+    "conversation_id": 26,
+    "status": "new",
+    "created_at": "...",
+    "updated_at": "..."
+  }
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `leadId` | `number` | ID of the lead (new or existing) |
+| `isNew` | `boolean` | `true` = freshly created, `false` = existing lead was updated & linked to new visitor |
+| `lead` | `object` | Complete lead object (unchanged structure) |
+
+**Deduplication Behavior:**
+- Same email, new visitor → Existing lead updated with new visitor ID + form data
+- Same email, same visitor → Existing lead updated (normal edit)
+- New email → New lead created
+- Returns HTTP 200 in all cases (no more 409 Conflict)
+
+**Frontend Changes:**
+- `LeadForm.tsx` no longer catches 409 errors
+- Respects `isNew` flag from backend response
+- Enhanced visitor ID generation moved to frontend (uses correct company name from widget config)
+
+#### Modified Files
+
+1. **`src/components/ChatWindow.tsx`**
+   - Added `Plus` icon from lucide-react for new chat button
+   - Added `showConfirm` state for inline confirmation UI
+   - Added `confirmTimeoutRef` for auto-cancel timer
+   - New function: `handleNewChat()` - Executes reset
+   - New function: `requestConfirmNewChat()` - Shows confirmation with 5s timeout
+   - New button in header with confirmation logic
+   - Button disabled in preview mode
+   - Enhanced `handleLeadSubmitSuccess()` to generate visitor ID client-side
+
+2. **`src/components/LeadForm.tsx`**
+   - Removed 409 Conflict error handling
+   - Now uses `isNew` from API response instead of hardcoded value
+   - Graceful handling of existing lead updates
+
+3. **`src/utils/uuid.ts`**
+   - Modified `clearVisitorId()` to preserve `greeto_client_name` in sessionStorage
+   - Added detailed comments explaining org name persistence
+   - Imported and exported `generateReadableVisitorId` for use in ChatWindow
+
+4. **`src/index.css`**
+   - Added `color: white !important` to `.icon-button` CSS isolation block
+   - Added `cursor: pointer !important` to icon button styles
 
 ### v1.3.0 - Starter Suggestions & Client Status Management
 - ✨ **Starter Suggestions** - Display contextual starter prompts to users on initial chat load

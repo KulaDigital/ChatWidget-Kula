@@ -3,13 +3,14 @@
 // src/components/ChatWindow.tsx
 
 import { useState, useEffect, useRef } from 'react';
+import { Plus } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import LeadForm from './LeadForm';
 import type { Message, ChatResponse } from '../types/chat';
 import type { LeadSubmitResponse, LeadFormData } from '../types/lead';
 import apiClient, { getLead, getWidgetConfig } from '../config/api';
-import { getVisitorId } from '../utils/uuid';
+import { getVisitorId, clearVisitorId, generateReadableVisitorId } from '../utils/uuid';
 import GreetoIconWhite from '../assets/GreetoIconWhite.svg';
 
 interface ChatWindowProps {
@@ -34,7 +35,9 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
   const [leadData, setLeadData] = useState<LeadFormData | null>(null);
   const [starterSuggestions, setStarterSuggestions] = useState<string[]>([]);
   const [suggestionsVisible, setSuggestionsVisible] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isInitialLoad = useRef(true);
 
@@ -245,15 +248,60 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
     }
   };
 
+  // ✅ Handle new chat reset
+  const handleNewChat = () => {
+    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    setShowConfirm(false);
+
+    // Clear visitor identity
+    clearVisitorId();
+    const newId = getVisitorId();
+    setVisitorId(newId);
+
+    // Reset conversation
+    setConversationId(null);
+    localStorage.removeItem('greeto_conversation_id');
+
+    // Reset messages and UI state
+    setMessages([{ role: 'assistant', content: welcomeMessage }]);
+    setSuggestionsVisible(true);
+    setShowLeadForm(false);
+
+    // Reset lead data
+    setLeadData(null);
+    setLeadSubmitted(false);
+  };
+
+  const requestConfirmNewChat = () => {
+    setShowConfirm(true);
+    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+    confirmTimeoutRef.current = setTimeout(() => setShowConfirm(false), 5000);
+  };
+
   // ✅ Handle lead form success
   const handleLeadSubmitSuccess = (response: LeadSubmitResponse) => {
     console.log('[Greeto Widget] Lead submitted successfully:', response);
 
-    // ✅ Use enhanced visitor_id from backend response
-    const enhancedVisitorId = response.lead.visitor_id;
+    // ✅ Generate enhanced visitor ID on the frontend using the correct org name.
+    // The backend-returned visitor_id may use a generic "organization" prefix because
+    // it doesn't have access to the configured client name. We resolve the org name
+    // from sessionStorage (set by widget config API) and build the ID ourselves so
+    // localStorage always reflects the correct company name.
+    const orgName =
+      sessionStorage.getItem('greeto_client_name') ||
+      localStorage.getItem('greeto_stored_organization') ||
+      document.getElementById('greeto-chat-widget-container')?.getAttribute('data-organization-name') ||
+      'Organization';
+
+    const nameParts = response.lead.name.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
+    const enhancedVisitorId = generateReadableVisitorId(orgName, firstName, lastName);
+
     setVisitorId(enhancedVisitorId);
     localStorage.setItem('greeto_readable_visitor_id', enhancedVisitorId);
-    console.log('[Greeto Widget] Enhanced visitor ID updated to:', enhancedVisitorId);
+    localStorage.setItem('greeto_stored_organization', orgName);
+    console.log('[Greeto Widget] Enhanced visitor ID generated:', enhancedVisitorId, '(org:', orgName, ')');
 
     // Store conversation ID if provided in response
     if (response.lead.conversation_id) {
@@ -308,20 +356,50 @@ function ChatWindow({ onClose, minimizeIcon }: ChatWindowProps) {
           </div>
         </div>
 
-        {/* Minimize button - Pure Tailwind CSS */}
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="icon-button bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 flex-shrink-0 group"
-            aria-label="Minimize chat"
-          >
-            <img
-              src={minimizeIcon}
-              alt="Minimize"
-              className="w-4 h-4 block transition-transform duration-200 group-hover:scale-110"
-            />
-          </button>
-        )}
+        {/* Header right actions */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {showConfirm ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-white/90">
+              <span>Start new chat?</span>
+              <button
+                onClick={handleNewChat}
+                className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 font-medium transition-colors"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current); }}
+                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={requestConfirmNewChat}
+              disabled={document.getElementById('greeto-chat-widget-container')?.getAttribute('data-preview-mode') === 'true'}
+              className="icon-button bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              aria-label="Start new chat"
+              title="Start new chat"
+            >
+              <Plus className="w-4 h-4 text-white transition-colors" />
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="icon-button bg-transparent hover:bg-white/10 active:bg-white/20 rounded-lg p-1.5 transition-all duration-200 flex-shrink-0 group"
+              aria-label="Minimize chat"
+            >
+              <img
+                src={minimizeIcon}
+                alt="Minimize"
+                className="w-4 h-4 block transition-transform duration-200 group-hover:scale-110"
+              />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages - Flexible scrollable area (takes remaining space) */}

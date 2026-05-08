@@ -52,6 +52,8 @@
   border: none !important;
   border-color: transparent !important;
   box-shadow: none !important;
+  color: white !important;
+  cursor: pointer !important;
 }
 
 #greeto-chat-widget-container button.icon-button:hover {
