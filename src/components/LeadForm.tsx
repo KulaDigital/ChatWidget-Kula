@@ -85,6 +85,14 @@ const LeadForm: React.FC<LeadFormProps> = ({
     e.preventDefault();
     setApiError(null);
 
+    // ✅ Validate conversationId is present (required for backend)
+    if (!isEditMode && !conversationId) {
+      const error = 'Connection issue. Please refresh the page and try again.';
+      setApiError(error);
+      console.error('[Greeto Widget] Missing conversationId for new lead submission');
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -104,11 +112,22 @@ const LeadForm: React.FC<LeadFormProps> = ({
         };
 
         const result = await updateLead(visitorId, updateData);
+        console.log('[Greeto Widget] Update lead response:', result);
+        
+        // ✅ Ensure response includes the submitted form data
+        const leadData = result.lead || result.data?.lead || result;
         response = {
-          success: result.success,
-          leadId: result.lead?.id,
+          success: result.success || !!result.lead,
+          leadId: leadData?.id || result.id,
           isNew: false,
-          lead: result.lead,
+          // Use submitted form data to ensure accurate updates
+          lead: {
+            ...(typeof leadData === 'object' ? leadData : {}),
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim() || undefined,
+            company: formData.company.trim() || undefined,
+          },
         };
       } else {
         // Create mode: full submission
@@ -121,15 +140,37 @@ const LeadForm: React.FC<LeadFormProps> = ({
           ...(conversationId && { conversationId }),
         };
 
-        response = await submitLead(submitData);
+        console.log('[Greeto Widget] Submitting lead form:', submitData);
+        const apiResponse = await submitLead(submitData);
+        console.log('[Greeto Widget] Raw API response:', apiResponse);
+        
+        // ✅ Ensure response includes the submitted form data for accurate visitor ID update
+        const leadData = apiResponse.lead || apiResponse.data?.lead || apiResponse;
+        response = {
+          success: apiResponse.success || !!apiResponse.lead || !!apiResponse.data?.lead,
+          leadId: leadData?.id || apiResponse.leadId || apiResponse.id,
+          isNew: apiResponse.isNew ?? true,
+          // Always use submitted form data to ensure we have correct name/email
+          lead: {
+            ...(typeof leadData === 'object' ? leadData : {}),
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim() || undefined,
+            company: formData.company.trim() || undefined,
+          },
+        };
       }
 
-      if (response.success) {
-        console.log('[Greeto Widget] Lead submission successful');
+      console.log('[Greeto Widget] Processed response:', response);
+      
+      if (response.success && response.lead) {
+        console.log('[Greeto Widget] Lead submission successful, calling onSuccess');
         onSuccess(response);
-        onCancel();
+        console.log('[Greeto Widget] onSuccess called, form should close');
       } else {
-        setApiError(response.error || 'Failed to submit lead. Please try again.');
+        const errorMsg = response.error || 'Failed to submit lead. Please try again.';
+        console.error('[Greeto Widget] Lead submission validation failed:', { response, errorMsg });
+        setApiError(errorMsg);
       }
     } catch (error: any) {
       const errorMessage =

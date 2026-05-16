@@ -6,7 +6,7 @@ import './index.css';
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import Widget from './widget';
-import { setApiKey, fetchClientAndSubscriptionStatus } from './config/api';
+import { setApiKey, fetchClientAndSubscriptionStatus, getWidgetConfig } from './config/api';
 
 interface WidgetConfig {
   primaryColor: string;
@@ -18,8 +18,13 @@ interface WidgetConfig {
 interface WidgetConfigResponse {
   success: boolean;
   client_name?: string;
+  clientName?: string;
+  company_name?: string;
+  organizationName?: string;
+  organization_name?: string;
   widget_config?: WidgetConfig;
   error?: string;
+  [key: string]: any;
 }
 
 class GreetoChatWidget {
@@ -63,7 +68,14 @@ class GreetoChatWidget {
       // ✅ Fetch config from backend (only if statuses allow)
       let config: WidgetConfigResponse | null = null;
       try {
-        config = await this.fetchWidgetConfig();
+        // First try the apiClient version which will set sessionStorage
+        config = await getWidgetConfig();
+        console.log('[Greeto Chat] Config fetched via apiClient:', config);
+        
+        if (!config) {
+          // Fallback to direct fetch
+          config = await this.fetchWidgetConfig();
+        }
       } catch (cfgError: any) {
         console.warn('[Greeto Chat] Widget config fetch error:', cfgError?.message || cfgError);
         // Fallback to default config
@@ -177,6 +189,12 @@ class GreetoChatWidget {
       throw new Error(errMsg);
     }
 
+    // ✅ Store client_name in sessionStorage immediately for getVisitorId() to access
+    if (body?.client_name) {
+      sessionStorage.setItem('greeto_client_name', body.client_name);
+      console.log('[Greeto Chat] Client name cached in sessionStorage:', body.client_name);
+    }
+
     return body as WidgetConfigResponse;
   }
 
@@ -232,7 +250,19 @@ class GreetoChatWidget {
     this.container.setAttribute('data-position', widgetConfig.position);
     this.container.setAttribute('data-welcome-message', widgetConfig.welcomeMessage);
     
-    console.log('[Greeto Chat] Config applied:', widgetConfig);
+    // ✅ Store organization name - check multiple possible field names from API
+    const orgName = 
+      config.client_name || 
+      config.clientName || 
+      config.company_name || 
+      config.organization_name || 
+      config.organizationName || 
+      'Organization';
+    
+    this.container.setAttribute('data-organization-name', orgName);
+    console.log('[Greeto Chat] Organization name extracted:', orgName);
+    console.log('[Greeto Chat] Full config response:', config);
+    console.log('[Greeto Chat] Widget config:', widgetConfig);
   }
 
   private applyDefaultConfig(): void {
@@ -252,7 +282,10 @@ class GreetoChatWidget {
     this.container.setAttribute('data-position', 'bottom-right');
     this.container.setAttribute('data-welcome-message', 'Hi! How can I help you today?');
     
-    console.log('[Greeto Chat] Using default config');
+    // ✅ Always set organization name even in default config
+    this.container.setAttribute('data-organization-name', 'Organization');
+    
+    console.log('[Greeto Chat] Using default/fallback config with organization name: Organization');
   }
 
   private hexToRgb(hex: string): { r: number; g: number; b: number } | null {

@@ -37,6 +37,7 @@ A **standalone, embeddable React chat widget** built with modern technologies. D
 - ✅ **Multi-Position Support** - Place widget at any corner (bottom-right, bottom-left, top-right, top-left)
 - ✅ **Conversation Persistence** - Saves chat history using localStorage
 - ✅ **Visitor ID Tracking** - UUID v4 based visitor identification with persistent storage
+- ✅ **New Chat Button** - Reset conversation and start fresh with a single click + confirmation prompt
 - ✅ **Lead Capture Form** - User-invoked form to collect visitor details (name, email, phone, company)
 - ✅ **Lead Management** - Create, read, and update lead information with API integration
 - ✅ **Smart Form UI** - Toggle between chat input and lead form, auto-detect returning visitors
@@ -686,6 +687,123 @@ CMD ["npm", "run", "preview"]
 
 ## 📝 Recent Updates
 
+### v1.4.0 - New Chat Button & Lead Deduplication by Email
+- ✨ **New Chat Button** - Reset conversation, visitor ID, and lead data with a single click
+- 🔄 **Smart Confirmation UI** - Inline confirmation prompt prevents accidental resets (auto-cancels after 5 seconds)
+- 🔌 **Lead Deduplication** - Leads now deduplicated by email instead of visitor ID, supporting multiple session resets
+- 📊 **Enhanced Lead Response** - `POST /leads` now returns `leadId` and `isNew` flags for better tracking
+- 🗄️ **Database Constraint Update** - Unique constraint changed from `(client_id, visitor_id)` to `(client_id, lower(email))`
+- 🎯 **Graceful Upsert Logic** - Duplicate email submissions update existing lead instead of failing
+- 🧹 **Visitor ID Generation Fix** - Frontend now generates enhanced visitor IDs to preserve correct company name after lead submission
+
+#### New Chat Feature Details
+
+**User-Facing Button:**
+- Located in chat window header, next to minimize button
+- Displays as a `+` icon with tooltip "Start new chat"
+- Clicking shows inline confirmation: `"Start new chat? [Yes] [No]"`
+- Auto-cancels confirmation after 5 seconds
+- Disabled in preview mode
+
+**What Gets Reset:**
+- ✅ All conversation messages (reset to welcome message)
+- ✅ Conversation ID (cleared from localStorage and state)
+- ✅ Visitor ID (new one generated with correct company name)
+- ✅ Starter suggestions (reappear)
+- ✅ Lead data and submission status (cleared)
+- ✅ Lead form (closed)
+
+**Backend Behavior:**
+- No backend API call required for reset
+- New `visitorId` + existing client allows fresh `POST /chat` with new conversation
+- Old conversation row persists in DB as historical record (orphaned but intact)
+
+#### Lead Deduplication Changes
+
+**Database Schema Update:**
+```sql
+-- Old constraint (removed)
+CONSTRAINT conversations_client_visitor_unique UNIQUE (client_id, visitor_id)
+
+-- New constraint (added)
+CONSTRAINT leads_client_email_unique UNIQUE (client_id, lower(email))
+```
+
+**API Response Changes - `POST /api/leads`**
+
+**Before:**
+```json
+{
+  "success": true,
+  "lead": { ... }
+}
+```
+
+**After (Breaking Change for API Consumers):**
+```json
+{
+  "success": true,
+  "leadId": 12345,
+  "isNew": false,
+  "lead": {
+    "id": 12345,
+    "visitor_id": "acme_john_doe_5829",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1-234-567-8900",
+    "company": "Acme Corp",
+    "conversation_id": 26,
+    "status": "new",
+    "created_at": "...",
+    "updated_at": "..."
+  }
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `leadId` | `number` | ID of the lead (new or existing) |
+| `isNew` | `boolean` | `true` = freshly created, `false` = existing lead was updated & linked to new visitor |
+| `lead` | `object` | Complete lead object (unchanged structure) |
+
+**Deduplication Behavior:**
+- Same email, new visitor → Existing lead updated with new visitor ID + form data
+- Same email, same visitor → Existing lead updated (normal edit)
+- New email → New lead created
+- Returns HTTP 200 in all cases (no more 409 Conflict)
+
+**Frontend Changes:**
+- `LeadForm.tsx` no longer catches 409 errors
+- Respects `isNew` flag from backend response
+- Enhanced visitor ID generation moved to frontend (uses correct company name from widget config)
+
+#### Modified Files
+
+1. **`src/components/ChatWindow.tsx`**
+   - Added `Plus` icon from lucide-react for new chat button
+   - Added `showConfirm` state for inline confirmation UI
+   - Added `confirmTimeoutRef` for auto-cancel timer
+   - New function: `handleNewChat()` - Executes reset
+   - New function: `requestConfirmNewChat()` - Shows confirmation with 5s timeout
+   - New button in header with confirmation logic
+   - Button disabled in preview mode
+   - Enhanced `handleLeadSubmitSuccess()` to generate visitor ID client-side
+
+2. **`src/components/LeadForm.tsx`**
+   - Removed 409 Conflict error handling
+   - Now uses `isNew` from API response instead of hardcoded value
+   - Graceful handling of existing lead updates
+
+3. **`src/utils/uuid.ts`**
+   - Modified `clearVisitorId()` to preserve `greeto_client_name` in sessionStorage
+   - Added detailed comments explaining org name persistence
+   - Imported and exported `generateReadableVisitorId` for use in ChatWindow
+
+4. **`src/index.css`**
+   - Added `color: white !important` to `.icon-button` CSS isolation block
+   - Added `cursor: pointer !important` to icon button styles
+
 ### v1.3.0 - Starter Suggestions & Client Status Management
 - ✨ **Starter Suggestions** - Display contextual starter prompts to users on initial chat load
 - 🎯 **Client/Subscription Status Checking** - Widget visibility controlled by client and subscription status
@@ -985,6 +1103,147 @@ If luminance ≤ 0.5 → use white text (#ffffff)
 ```
 
 This ensures text remains readable regardless of the chosen theme colors.
+
+---
+
+## 🧩 Undocumented / Recently Discovered Behaviours
+
+This section captures important implementation details that are not covered elsewhere in the README. Future developers should read this before making changes to the widget core.
+
+---
+
+### `needsHuman` Flag — Inline Lead-Capture CTA
+
+**Where:** `src/types/chat.ts`, `src/components/MessageBubble.tsx`, `src/components/ChatWindow.tsx`
+
+When the `/chat` endpoint returns `needsHuman: true` in its response, the assistant message bubble automatically renders an inline call-to-action below the message text:
+
+- **First visit:** shows a *"Leave my details"* button.
+- **Returning visitor (lead already submitted):** shows *"Edit my details"* instead.
+
+Clicking the button opens the `LeadForm` panel in the appropriate create or edit mode.
+
+**Chat API response shape (full):**
+```json
+{
+  "response": "I'm sorry, I can't answer that directly...",
+  "conversationId": 42,
+  "clientName": "Acme Corp",
+  "needsHuman": true,
+  "sources": [{ "url": "https://...", "similarity": 0.87 }],
+  "contextsUsed": 3
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `needsHuman` | `boolean` | Triggers inline CTA in message bubble |
+| `sources` | `Source[]` | RAG source URLs with similarity scores (reserved, not yet rendered) |
+| `contextsUsed` | `number` | Number of RAG chunks used (reserved, not yet rendered) |
+| `clientName` | `string` | Client name echo from backend (reserved) |
+
+> **Note:** `sources` and `contextsUsed` are fully typed (`src/types/chat.ts`) but are not currently displayed in the UI. They are available for future use.
+
+---
+
+### Lead Form — `conversationId` Required for New Submissions
+
+**Where:** `src/components/LeadForm.tsx` (line ~87)
+
+When submitting a **new** lead (not edit mode), the form validates that a `conversationId` is present. If the user tries to open the form before sending any message, the submission will fail with:
+
+> *"Connection issue. Please refresh the page and try again."*
+
+**Design intent:** A conversation must exist on the backend before a lead can be linked to it. Ensure users send at least one chat message before surfacing the lead form, or pre-create a conversation server-side during widget init.
+
+---
+
+### Lead Form — 409 Conflict Handling
+
+**Where:** `src/components/LeadForm.tsx` (catch block in `handleSubmit`)
+
+If the backend returns HTTP `409 Conflict` (visitor has already submitted a lead), the form displays:
+
+> *"You've already shared your details with us. We'll be in touch soon!"*
+
+This is a silent recovery — no retry is attempted and the form remains open so the user can close it manually. The `updateLead` path (edit mode) does not trigger 409 errors.
+
+---
+
+### Storage Keys — Full Reference
+
+The widget uses the following browser storage keys:
+
+| Key | Storage | Set By | Description |
+|-----|---------|--------|-------------|
+| `greeto_visitor_id` | `localStorage` | `src/utils/uuid.ts` — `getVisitorId()` | UUID v4 for anonymous visitor tracking. Created on first visit, persists indefinitely. |
+| `greeto_readable_visitor_id` | `localStorage` | `src/components/ChatWindow.tsx` — `handleLeadSubmitSuccess()` | Backend-enhanced visitor ID returned after lead submission. Overwrites the raw UUID with a human-readable format if the backend provides one. |
+| `greeto_conversation_id` | `localStorage` | `src/components/ChatWindow.tsx` | Active conversation ID. Persists across sessions to restore chat history. |
+| `greeto_client_name` | `sessionStorage` | `src/config/api.ts` — `getWidgetConfig()` / `src/embed.ts` — `fetchWidgetConfig()` | Client/organisation name from the `/widget/config` response. Cached for use by `getVisitorId()` to build readable IDs. Cleared when the browser tab closes. |
+
+> **Important:** `greeto_readable_visitor_id` and `greeto_visitor_id` can diverge after lead submission. Code that reads the visitor ID should always use `getVisitorId()` from `src/utils/uuid.ts`, which returns `greeto_visitor_id`. The `greeto_readable_visitor_id` is updated separately in `ChatWindow` state and is the authoritative ID for API calls within that component session.
+
+---
+
+### `data-organization-name` Container Attribute
+
+**Where:** `src/embed.ts` — `applyConfig()` and `applyDefaultConfig()`
+
+After fetching widget configuration, the embed script sets a `data-organization-name` attribute on the `#greeto-chat-widget-container` element:
+
+```html
+<div id="greeto-chat-widget-container"
+     data-position="bottom-right"
+     data-welcome-message="Hi! How can I help?"
+     data-organization-name="Acme Corp">
+```
+
+The value is resolved from the config response in priority order:
+1. `client_name`
+2. `clientName`
+3. `company_name`
+4. `organization_name`
+5. `organizationName`
+6. Falls back to `"Organization"` if none are present.
+
+This attribute is available to components via `document.getElementById('greeto-chat-widget-container')?.getAttribute('data-organization-name')` for future use (e.g. personalised greetings).
+
+---
+
+### Preview Mode — Accurate Message Text
+
+The README previously listed an outdated preview mode notification. The **actual** message shown to users (as of current code in `src/components/ChatWindow.tsx`) is:
+
+> *"This is preview mode. Message sending is disabled. Try client dashboard - Test chatbot to test your chatbot replies."*
+
+This applies to both direct message sends and starter suggestion clicks.
+
+---
+
+### "Powered by Greeto" Branding Footer
+
+**Where:** `src/components/ChatWindow.tsx` (bottom of render)
+
+Every deployed widget instance renders a small branding footer:
+
+```
+Powered by Greeto  (links to https://greeto.ai)
+```
+
+This is **always rendered** and is not currently configurable via data attributes or API config. If white-labelling is required in the future, a `data-hide-branding` attribute or a backend config flag would need to be introduced.
+
+---
+
+### Auto-CSS Loading (Production Only)
+
+**Where:** `src/embed.ts` — `loadStylesheet()`
+
+In production (`embed.ts`), the widget automatically injects a `<link>` tag pointing to `widget.css` using the same base URL as `widget.js`. Manual `<link>` inclusion is **not required** when using the script-tag embed method.
+
+Fallback behaviour:
+- If CSS is already loaded (detected via `link[href*="widget.css"]`), the injection is skipped.
+- If the `<link>` tag fails to load within **3 seconds**, initialisation continues with inline styles.
+- In development (`main.tsx`), CSS is injected by Vite and this auto-load step does not run.
 
 ---
 

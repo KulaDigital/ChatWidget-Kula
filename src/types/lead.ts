@@ -8,7 +8,7 @@ export interface LeadSubmitRequest {
   email: string;
   phone?: string;
   company?: string;
-  conversationId?: number;
+  conversationId: number;
 }
 
 export interface Lead {
